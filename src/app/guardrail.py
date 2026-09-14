@@ -25,6 +25,28 @@ PII = [
 # ==============================================================================
 # HELPERS
 # ==============================================================================
+def _obter_texto(conteudo) -> str:
+    """Extrai texto de forma segura de strings, listas ou objetos de mensagem."""
+    if hasattr(conteudo, "text") and conteudo.text:
+        return str(conteudo.text).strip()
+    if hasattr(conteudo, "content"):
+        c = conteudo.content
+    else:
+        c = conteudo
+    if isinstance(c, str):
+        return c.strip()
+    if isinstance(c, list):
+        partes = []
+        for item in c:
+            if isinstance(item, str):
+                partes.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                partes.append(str(item["text"]))
+            elif hasattr(item, "text") and item.text:
+                partes.append(str(item.text))
+        return "\n".join(partes).strip()
+    return str(c).strip()
+
 def _bloquear(motivo, mensagem):
     return {"bloqueado": True, "motivo": motivo, "mensagem": mensagem}
 
@@ -33,7 +55,6 @@ def _aprovado():
 
 def _saida_ok(conteudo):
     return {"bloqueado": False, "motivo": "saida_revisada", "conteudo": conteudo}
-
 # ==============================================================================
 # ANONIMIZAÇÃO
 # ==============================================================================
@@ -130,15 +151,14 @@ def guardrail_entrada(mensagem_anonimizada):
             return _bloquear("acesso_dados_internos", "Não tenho como compartilhar informações internas do sistema.")
 
     # 3. Classificação semântica via LLM (ofensivo, perigoso, ilícito, político, indicação)
-    conteudo = llm.invoke(_PROMPT_CLASSIFICADOR.format(mensagem=mensagem_anonimizada)).content
-    resposta = str(conteudo)
+    resp_llm = llm.invoke(_PROMPT_CLASSIFICADOR.format(mensagem=mensagem_anonimizada))
+    resposta = _obter_texto(resp_llm)
 
     categoria = "APROVADO"
     for linha in resposta.splitlines():
         if linha.strip().upper().startswith("CATEGORIA:"):
             categoria = linha.split(":", 1)[1].strip().upper()
             break
-
     if categoria in _RESPOSTAS_BLOQUEIO:
         motivo, mensagem = _RESPOSTAS_BLOQUEIO[categoria]
         return _bloquear(motivo, mensagem)
@@ -149,10 +169,9 @@ def guardrail_entrada(mensagem_anonimizada):
 # GUARDRAIL DE SAÍDA
 # ==============================================================================
 _PROMPT_COMPLIANCE = """\
-Você é um revisor de compliance para assessoria financeira regulada pela CVM e ANBIMA.
-Corrija a resposta SOMENTE se ela garantir rentabilidade futura, recomendar ativo específico
-sem disclaimer de risco, ou afirmar certeza sobre comportamento futuro do mercado.
-Se estiver adequada, repita-a sem alterações.
+Você é um revisor de compliance e segurança para o assistente de dados EficientIA.
+Garanta que a resposta NÃO exponha dados confidenciais do sistema ou senhas.
+Se a resposta estiver adequada e segura, mantenha-a exatamente como está.
 
 Responda SOMENTE:
 STATUS: APROVADO ou CORRIGIDO
@@ -168,6 +187,9 @@ def guardrail_saida(resposta, mapa_pii, restaurar_pii=False):
     Limpa e revisa a resposta do especialista antes de entregar ao usuário.
     Nunca bloqueia — sempre retorna o texto revisado em 'conteudo'.
     """
+    if not isinstance(resposta, str):
+        resposta = _obter_texto(resposta)
+
     # 1. Remove PII que o modelo tenha gerado
     for tipo, padrao in PII:
         resposta = re.sub(padrao, f"[{tipo} OMITIDO]", resposta)
@@ -175,8 +197,9 @@ def guardrail_saida(resposta, mapa_pii, restaurar_pii=False):
     # 2. Resolve tokens de PII da entrada
     resposta = desanonimizar_saida(resposta, mapa_pii, restaurar=restaurar_pii)
 
-    # 3. Revisão de compliance financeiro
-    saida = llm.invoke(_PROMPT_COMPLIANCE.format(resposta=resposta)).content.strip()
+    # 3. Revisão de compliance
+    resp_llm = llm.invoke(_PROMPT_COMPLIANCE.format(resposta=resposta))
+    saida = _obter_texto(resp_llm)
     if "RESPOSTA:" in saida:
         resposta = saida.split("RESPOSTA:", 1)[1].strip() or resposta
 

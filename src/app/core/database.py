@@ -1,4 +1,7 @@
-from src.app.config import MONGODB_URI, MONGO_DB_NAME
+import os
+import re
+from src.app.config import MONGODB_URI, MONGO_DB_NAME, DATABASE_URL
+from sqlalchemy import create_engine, text
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 from langgraph.checkpoint.mongodb import MongoDBSaver
@@ -66,3 +69,40 @@ async def salvar_mensagem_historico(mensagem: MessageModel):
     """
     await db.messages.insert_one(mensagem.model_dump())
     await criar_ou_atualizar_thread(mensagem.thread_id)
+
+# ==============================================================================
+# CONFIGURAÇÃO DE CONEXÃO POSTGRESQL
+# ==============================================================================
+_pg_engine = None
+
+def get_postgres_engine():
+    """
+    Retorna a engine do SQLAlchemy para conexão ao banco de dados PostgreSQL.
+    Possui suporte a reconexão automática e fallback para pooler do Supabase.
+    """
+    global _pg_engine
+    if _pg_engine is not None:
+        return _pg_engine
+
+    url = DATABASE_URL or os.getenv("DATABASE_URL")
+    if not url:
+        raise ValueError("DATABASE_URL não configurada no ambiente.")
+
+    try:
+        engine = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        _pg_engine = engine
+        return _pg_engine
+    except Exception:
+        # Fallback para pooler Supabase caso a resolução direta do host falhe
+        match = re.search(r"postgresql://([^:]+):([^@]+)@db\.([a-z0-9]+)\.supabase\.co:(\d+)/(.*)", url)
+        if match:
+            user, pwd, ref, port, db_name = match.groups()
+            pooler_url = f"postgresql://{user}.{ref}:{pwd}@aws-0-sa-east-1.pooler.supabase.com:6543/{db_name}"
+            engine = create_engine(pooler_url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            _pg_engine = engine
+            return _pg_engine
+        raise

@@ -5,16 +5,23 @@ from dotenv import load_dotenv
 # BASE_DIR aponta para migracao_fastAPI/. Montado a partir da localização
 # do próprio arquivo: não depende da pasta de onde você rodou o uvicorn.
 BASE_DIR     = Path(__file__).resolve().parent
-DATA_DIR     = BASE_DIR / "data"
+PROJECT_DIR  = BASE_DIR.parent
+DATA_DIR     = PROJECT_DIR / "data"
 
 print(f"DEBUG: BASE_DIR={BASE_DIR}")
 load_dotenv(BASE_DIR / ".env")
+load_dotenv(PROJECT_DIR / ".env")
 print(f"DEBUG: GEMINI_API_KEY={os.getenv('GEMINI_API_KEY')}")
 
-DATA_DIR     = BASE_DIR / "data"
-
-FAQ_PATH = DATA_DIR / "FAQ_gestao_v1.1.pdf"
-
+_faq_env = os.getenv("FAQ")
+if _faq_env and Path(_faq_env).exists():
+    FAQ_PATH = Path(_faq_env)
+elif (DATA_DIR / "FAQ.md").exists():
+    FAQ_PATH = DATA_DIR / "FAQ.md"
+elif (PROJECT_DIR / "src" / "data" / "FAQ.md").exists():
+    FAQ_PATH = PROJECT_DIR / "src" / "data" / "FAQ.md"
+else:
+    FAQ_PATH = DATA_DIR / "FAQ.md"
 
 
 GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY")

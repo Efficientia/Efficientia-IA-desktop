@@ -33,7 +33,7 @@ agora = datetime.now().strftime("%H:%M:%S")
 router_app       = create_react_agent(model=llm_rapido,       tools=TOOLS_MEMORIA,                prompt=ROUTER_PROMPT_COMPLETO)
 analise_dados_app = create_react_agent(model=llm_especialista, tools=TOOLS + TOOLS_MEMORIA,        prompt=ANALISE_DADOS_PROMPT_COMPLETO)
 planejamento_app  = create_react_agent(model=llm_especialista, tools=TOOLS_AGENDA + TOOLS_MEMORIA, prompt=PLANEJAMENTO_PROMPT_COMPLETO)
-orquestrador_app = create_react_agent(model=llm_rapido,       tools=[],                            prompt=ORQUESTRADOR_PROMPT_COMPLETO)
+# Orquestrador utiliza invocação direta do modelo com prompt de sistema (sem tools)
 faq_app          = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
 
 # ==============================================================================
@@ -54,14 +54,31 @@ class Estado(MessagesState):                                  # ID da sessão
 # ==============================================================================
 # NÓS
 # ==============================================================================
+def _obter_texto(msg) -> str:
+    if hasattr(msg, "text") and msg.text:
+        return str(msg.text).strip()
+    if hasattr(msg, "content"):
+        c = msg.content
+    else:
+        c = msg
+    if isinstance(c, str):
+        return c.strip()
+    if isinstance(c, list):
+        partes = []
+        for item in c:
+            if isinstance(item, str):
+                partes.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                partes.append(str(item["text"]))
+            elif hasattr(item, "text") and item.text:
+                partes.append(str(item.text))
+        return "\n".join(partes).strip()
+    return str(c).strip()
+
 def no_roteador(estado: Estado, config: RunnableConfig) -> dict:
     # O `config` é injetado pelo LangGraph nos nós que o declaram na assinatura.
-    # Precisa ser repassado à mão: diferente de financeiro/agenda, que são nós do
-    # grafo (add_node) e herdam o config sozinhos, o router_app é chamado dentro
-    # de uma função comum. Sem esta linha a tool buscar_historico não recebe o
-    # thread_id/user_id e não consegue identificar de quem é o histórico.
     saida = router_app.invoke({"messages": list(estado["messages"])}, config=config)
-    texto = saida["messages"][-1].text
+    texto = _obter_texto(saida["messages"][-1])
 
     # Resposta direta (saudação, fora de escopo): já escreve no campo final
     if not texto.strip().startswith("ROUTE="):
@@ -78,14 +95,14 @@ def no_roteador(estado: Estado, config: RunnableConfig) -> dict:
 
 
 def no_analise_dados(estado: Estado, config: RunnableConfig) -> dict:
-    # Nó do grafo (add_node): o LangGraph injeta `config` sozinho — só
-    # precisa ser repassado à chamada interna do agente especialista.
     saida = analise_dados_app.invoke(
         {"messages": [{"role": "human", "content": estado["input"]}]},
         config=config,
     )
+    texto = _obter_texto(saida["messages"][-1])
     return {
-        "saida_especialista": saida["messages"][-1].text,
+        "saida_especialista": texto,
+        "resposta_final":     texto,
         "agentes_chamados":   ["analise_dados"],
     }
 
@@ -95,8 +112,10 @@ def no_planejamento(estado: Estado, config: RunnableConfig) -> dict:
         {"messages": [{"role": "human", "content": estado["input"]}]},
         config=config,
     )
+    texto = _obter_texto(saida["messages"][-1])
     return {
-        "saida_especialista": saida["messages"][-1].text,
+        "saida_especialista": texto,
+        "resposta_final":     texto,
         "agentes_chamados":   ["planejamento"],
     }
 
@@ -106,20 +125,23 @@ def no_faq(estado: Estado, config: RunnableConfig) -> dict:
         {"messages": [{"role": "human", "content": estado["input"]}]},
         config=config,
     )
+    texto = _obter_texto(saida["messages"][-1])
     return {
-        "saida_especialista": saida["messages"][-1].text,
-        "resposta_final":     saida["messages"][-1].text,  # bypassa o orquestrador
+        "saida_especialista": texto,
+        "resposta_final":     texto,  # bypassa o orquestrador
         "agentes_chamados":   ["faq"],
     }
 
-
 def no_orquestrador(estado: Estado, config: RunnableConfig) -> dict:
-    saida = orquestrador_app.invoke(
-        {"messages": [{"role": "human", "content": estado["saida_especialista"]}]},
-        config=config,
-    )
+    conteudo_entrada = estado.get("saida_especialista") or estado.get("input") or ""
+    mensagens = [
+        {"role": "system", "content": ORQUESTRADOR_PROMPT_COMPLETO},
+        {"role": "human", "content": conteudo_entrada},
+    ]
+    resp = llm_rapido.invoke(mensagens)
+    texto = _obter_texto(resp)
     return {
-        "resposta_final":   saida["messages"][-1].text,
+        "resposta_final":   texto,
         "agentes_chamados": ["orquestrador"],
     }
 
@@ -128,7 +150,7 @@ def no_orquestrador(estado: Estado, config: RunnableConfig) -> dict:
 
 def no_guardrail(estado: Estado) -> dict:
     msg_usuario = estado["messages"][-1]
-    puser = msg_usuario.content
+    puser = _obter_texto(msg_usuario)
     anonimizado, novo_mapa = anonimizar_entrada(puser)
 
     resposta = guardrail_entrada(anonimizado)
@@ -139,33 +161,27 @@ def no_guardrail(estado: Estado) -> dict:
             "messages": [{"role": "system", "content": f"[GUARDRAIL BLOQUEOU] Motivo: {resposta['motivo']}"}],
         }
     else:
+        msg_remover = [RemoveMessage(id=msg_usuario.id)] if hasattr(msg_usuario, "id") and msg_usuario.id else []
         return {
             "input": anonimizado,
             "mapa_pii": novo_mapa,
             "agentes_chamados": ["guardrail_entrada"],
-            # Remove a mensagem original (com o dado real) e insere no lugar
-            # dela a versão anonimizada — assim o roteador e os especialistas
-            # nunca veem o texto original com PII, mas o histórico continua
-            # tendo a mensagem do usuário (só que anonimizada).
-            "messages": [
-                RemoveMessage(id=msg_usuario.id),
-                {"role": "human", "content": anonimizado},
-            ],
+            "messages": msg_remover + [{"role": "human", "content": anonimizado}],
         }
 
 
 def no_guardrail_saida(estado: Estado) -> dict:
-    resultado = guardrail_saida(estado["resposta_final"], estado["mapa_pii"])
+    resp = estado.get("resposta_final") or estado.get("saida_especialista") or ""
+    resultado = guardrail_saida(resp, estado.get("mapa_pii", {}))
     return {
         "messages": [{"role": "system", "content": f"[GUARDRAIL REVISOU SAÍDA] Resultado: {resultado['motivo']}"}],
         "resposta_final": resultado["conteudo"]
     }
 
 def roteador_guardrail_entrd(estado: Estado) -> str:
-    if estado.get("resposta_final") == "fim":
+    if estado.get("resposta_final"):
         return "fim"
     return "roteador"
-
 
 # === ^^^^^^^^^^ Quero e TENHO que estudar isso ^^^^^^^^^^ ===
 
@@ -175,14 +191,19 @@ def roteador_guardrail_entrd(estado: Estado) -> str:
 # ==============================================================================
 def decidir_especialista(estado: Estado) -> str:
     """Lê o protocolo do roteador e devolve o nome do próximo nó."""
-    texto = estado["input"].strip()
+    texto = estado.get("input", "").strip()
 
     if not texto.startswith("ROUTE="):
         return "fim"   # resposta direta já foi escrita no nó do roteador
 
-    rota = texto.split("\n", 1)[0].split("=", 1)[1].strip()
-    return rota if rota in ("analise_dados", "planejamento", "faq") else "fim"
-
+    rota = texto.split("\n", 1)[0].split("=", 1)[1].strip().lower()
+    if rota in ("motorista", "alerta", "dashboard", "analise_dados"):
+        return "analise_dados"
+    elif rota in ("planejamento", "agenda"):
+        return "planejamento"
+    elif rota in ("faq", "duvidas"):
+        return "faq"
+    return "analise_dados"
 
 
 
@@ -242,6 +263,9 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
         "agentes_chamados":   [],
         "rota": "",
         "mapa_pii": {},
+        "input": "",
+        "resposta_final": "",
+        "saida_especialista": "",
     }
 
     estado_final = fluxo_agentes.invoke(
@@ -249,12 +273,12 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
         config={"configurable": {"thread_id": session_id}},
     )
 
-    print(f"[debug] agentes chamados: {estado_final['agentes_chamados']}")
+    resposta = estado_final.get("resposta_final") or estado_final.get("saida_especialista") or "Desculpe, não consegui processar a resposta."
+    print(f"[debug] agentes chamados: {estado_final.get('agentes_chamados', [])}")
     return {
-        "resposta": estado_final["resposta_final"],
-        "agentes_chamados": estado_final["agentes_chamados"],
+        "resposta": resposta,
+        "agentes_chamados": estado_final.get("agentes_chamados", []),
     }
-
 
 
 # # ==============================================================================

@@ -2,18 +2,25 @@ import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from src.app.config import GEMINI_API_KEY
 
-# Gemini é o principal.
-llm_gemini = ChatGoogleGenerativeAI(
-    model="gemini-3.6-flash",
-    google_api_key=GEMINI_API_KEY,
-)
+_MODEL_RAPIDO = os.getenv("GEMINI_MODEL_RAPIDO", os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"))
+_MODEL_ESPECIALISTA = os.getenv("GEMINI_MODEL_ESPECIALISTA", os.getenv("GEMINI_MODEL", "gemini-3.5-flash"))
 
-# Modelo rápido — mesmo Gemini Flash (Groq API key sem acesso a modelos de chat)
+# Modelo rápido para guardrails, roteador e orquestrador
 llm_rapido = ChatGoogleGenerativeAI(
-    model="gemini-3.6-flash",
+    model=_MODEL_RAPIDO,
     google_api_key=GEMINI_API_KEY,
+    temperature=0.1,
+    max_retries=2,
 )
 
-llm_groq = llm_gemini          # fallback desativado — Groq sem acesso
-llm_especialista = llm_gemini
-llm = llm_gemini
+# Modelo especialista para análise de dados e planejamento
+llm_especialista = ChatGoogleGenerativeAI(
+    model=_MODEL_ESPECIALISTA,
+    google_api_key=GEMINI_API_KEY,
+    temperature=0.2,
+    max_retries=2,
+)
+
+llm_gemini = llm_especialista
+llm_groq = llm_rapido
+llm = llm_rapido

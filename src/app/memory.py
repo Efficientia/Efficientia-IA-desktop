@@ -49,11 +49,13 @@ def encerrar_sessao(session_id):
     # 1. Gerar resumo com LLM
     texto_sessao = "\n".join([f"{m['role']}: {m['content']}" for m in sessao["mensagens"]])
     prompt = f"Faça um resumo desta conversa:\n{texto_sessao}"
-    resumo_raw = llm.invoke(prompt).content
+    resp = llm.invoke(prompt)
+    resumo_raw = getattr(resp, "text", resp.content if hasattr(resp, "content") else str(resp))
+    if isinstance(resumo_raw, list):
+        resumo_raw = " ".join([str(p.get("text", p) if isinstance(p, dict) else p) for p in resumo_raw])
     
     # 2. Aplicar Guardrail de Saída (segurança)
-    resumo_seguro = guardrail_saida(resumo_raw, mapa_pii={})["conteudo"]
-
+    resumo_seguro = guardrail_saida(str(resumo_raw), mapa_pii={})["conteudo"]
     sessoes.update_one(
         {"session_id": session_id},
         {"$set": {"resumo": resumo_seguro, "encerrada_em": datetime.utcnow()}}
