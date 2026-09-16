@@ -8,10 +8,8 @@ BASE_DIR     = Path(__file__).resolve().parent
 PROJECT_DIR  = BASE_DIR.parent
 DATA_DIR     = PROJECT_DIR / "data"
 
-print(f"DEBUG: BASE_DIR={BASE_DIR}")
 load_dotenv(BASE_DIR / ".env")
 load_dotenv(PROJECT_DIR / ".env")
-print(f"DEBUG: GEMINI_API_KEY={os.getenv('GEMINI_API_KEY')}")
 
 _faq_env = os.getenv("FAQ")
 if _faq_env and Path(_faq_env).exists():
