@@ -23,7 +23,7 @@ async function enviar() {
         }
 
         const data = await response.json();
-        chat.innerHTML += `<p><b>EficientIA:</b> ${data.resposta}</p>`;
+        chat.innerHTML += `<p>${data.resposta}</p>`;
         chat.scrollTop = chat.scrollHeight;
     } catch (error) {
         chat.innerHTML += `<p style="color: red;"><b>Erro:</b> ${error.message}</p>`;

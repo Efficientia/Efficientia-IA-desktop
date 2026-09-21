@@ -222,7 +222,6 @@ grafo.add_conditional_edges(
     decidir_especialista,
     {
         "analise_dados": "analise_dados",
-        "planejamento":     "planejamento",
         "faq":        "faq",
         "fim":        END,       # resposta direta: sem especialista nem orquestrador
     },
