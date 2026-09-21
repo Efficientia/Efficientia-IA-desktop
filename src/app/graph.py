@@ -32,6 +32,7 @@ agora = datetime.now().strftime("%H:%M:%S")
 
 router_app       = create_react_agent(model=llm_rapido,       tools=TOOLS_MEMORIA,                prompt=ROUTER_PROMPT_COMPLETO)
 analise_dados_app = create_react_agent(model=llm_especialista, tools=TOOLS + TOOLS_MEMORIA,        prompt=ANALISE_DADOS_PROMPT_COMPLETO)
+planejamento_app  = create_react_agent(model=llm_especialista, tools=TOOLS_AGENDA + TOOLS_MEMORIA, prompt=PLANEJAMENTO_PROMPT_COMPLETO)
 # Orquestrador utiliza invocação direta do modelo com prompt de sistema (sem tools)
 faq_app          = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
 
@@ -106,6 +107,17 @@ def no_analise_dados(estado: Estado, config: RunnableConfig) -> dict:
     }
 
 
+def no_planejamento(estado: Estado, config: RunnableConfig) -> dict:
+    saida = planejamento_app.invoke(
+        {"messages": [{"role": "human", "content": estado["input"]}]},
+        config=config,
+    )
+    texto = _obter_texto(saida["messages"][-1])
+    return {
+        "saida_especialista": texto,
+        "resposta_final":     texto,
+        "agentes_chamados":   ["planejamento"],
+    }
 
 
 def no_faq(estado: Estado, config: RunnableConfig) -> dict:
@@ -187,7 +199,8 @@ def decidir_especialista(estado: Estado) -> str:
     rota = texto.split("\n", 1)[0].split("=", 1)[1].strip().lower()
     if rota in ("motorista", "alerta", "dashboard", "analise_dados"):
         return "analise_dados"
-    # planejamento removido
+    elif rota in ("planejamento", "agenda"):
+        return "planejamento"
     elif rota in ("faq", "duvidas"):
         return "faq"
     return "analise_dados"
@@ -201,6 +214,7 @@ grafo = StateGraph(Estado)
 
 grafo.add_node("roteador",     no_roteador)
 grafo.add_node("analise_dados",   no_analise_dados)
+grafo.add_node("planejamento",    no_planejamento)
 grafo.add_node("faq",          no_faq)
 grafo.add_node("orquestrador", no_orquestrador)
 grafo.add_node("guardrail_entrd", no_guardrail)
@@ -229,6 +243,7 @@ grafo.add_conditional_edges(
 )
 
 grafo.add_edge("analise_dados",   "orquestrador")
+grafo.add_edge("planejamento",    "orquestrador")
 grafo.add_edge("orquestrador", "guardrail_saida")
 grafo.add_edge("guardrail_saida", END)   # resposta do orquestrador passa pelo guardrail de saída para revisão final
 grafo.add_edge("faq",          END)
@@ -266,6 +281,22 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
     }
 
 
-# ==============================================================================
-# [LOOP REMOVIDO]
-# ==============================================================================
+# # ==============================================================================
+# # LOOP DE CONVERSA
+# # ==============================================================================
+# while True:
+#     try:
+#         user_input = input("> ")
+#         if user_input.lower() in ("sair", "end", "fim", "tchau", "bye"):
+#             print("Encerrando a conversa.")
+#             break
+
+#         resposta = executar_fluxo_assessor(
+#             pergunta_usuario=user_input,
+#             session_id="id_usuario_mas_agora_não_importa",
+#         )
+#         print(resposta)
+
+#     except Exception as e:
+#         print("Erro ao consumir a API:", e)
+#         continue

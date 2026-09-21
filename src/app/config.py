@@ -2,12 +2,16 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# BASE_DIR aponta para migracao_fastAPI/. Montado a partir da localização
+# do próprio arquivo: não depende da pasta de onde você rodou o uvicorn.
 BASE_DIR     = Path(__file__).resolve().parent
 PROJECT_DIR  = BASE_DIR.parent
 DATA_DIR     = PROJECT_DIR / "data"
 
+print(f"DEBUG: BASE_DIR={BASE_DIR}")
 load_dotenv(BASE_DIR / ".env")
 load_dotenv(PROJECT_DIR / ".env")
+print(f"DEBUG: GEMINI_API_KEY={os.getenv('GEMINI_API_KEY')}")
 
 _faq_env = os.getenv("FAQ")
 if _faq_env and Path(_faq_env).exists():

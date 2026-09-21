@@ -8,7 +8,7 @@ from datetime import datetime
 
 # Conexão Global
 client = MongoClient(MONGODB_URI or "mongodb://localhost:27017")
-db = client[MONGO_DB_NAME]
+db = client[MONGO_DB_NAME or "assessor"]
 sessoes = db["sessoes"]
 try:
     sessoes.drop_index("session_id_1")
