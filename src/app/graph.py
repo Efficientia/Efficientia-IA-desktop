@@ -1,5 +1,4 @@
 import operator
-import json
 from typing import Annotated, TypedDict
 from src.app.llms import llm_gemini, llm_groq, llm_rapido, llm_especialista
 from langgraph.graph import StateGraph, END
@@ -74,38 +73,29 @@ def _obter_texto(msg) -> str:
                 partes.append(str(item.text))
         return "\n".join(partes).strip()
     return str(c).strip()
+
 def no_roteador(estado: Estado, config: RunnableConfig) -> dict:
+    # O `config` é injetado pelo LangGraph nos nós que o declaram na assinatura.
     saida = router_app.invoke({"messages": list(estado["messages"])}, config=config)
     texto = _obter_texto(saida["messages"][-1])
-    
-    try:
-        data = json.loads(texto)
-        if "response" in data:
-            return {
-                "agentes_chamados": ["roteador"],
-                "resposta_final":   data["response"],
-                "input":            "",
-            }
-        elif "route" in data:
-            return {
-                "input":            "ROUTE=" + data["route"],
-                "agentes_chamados": ["roteador"],
-            }
-    except json.JSONDecodeError:
-        pass
-    
-    # Fallback
+
+    # Resposta direta (saudação, fora de escopo): já escreve no campo final
+    if not texto.strip().startswith("ROUTE="):
+        return {
+            "agentes_chamados": ["roteador"],
+            "resposta_final":   texto,
+        }
+
+    # Encaminhamento: sobrescreve input com o protocolo para o especialista
     return {
+        "input":            texto,
         "agentes_chamados": ["roteador"],
-        "resposta_final":   "Desculpe, não consegui processar sua solicitação. Pode reformular?",
-        "input":            "",
     }
 
 
 def no_analise_dados(estado: Estado, config: RunnableConfig) -> dict:
-    msg_usuario = estado["messages"][-1]
     saida = analise_dados_app.invoke(
-        {"messages": [msg_usuario]},
+        {"messages": [{"role": "human", "content": estado["input"]}]},
         config=config,
     )
     texto = _obter_texto(saida["messages"][-1])
@@ -119,9 +109,8 @@ def no_analise_dados(estado: Estado, config: RunnableConfig) -> dict:
 
 
 def no_faq(estado: Estado, config: RunnableConfig) -> dict:
-    msg_usuario = estado["messages"][-1]
     saida = faq_app.invoke(
-        {"messages": [msg_usuario]},
+        {"messages": [{"role": "human", "content": estado["input"]}]},
         config=config,
     )
     texto = _obter_texto(saida["messages"][-1])
@@ -132,8 +121,7 @@ def no_faq(estado: Estado, config: RunnableConfig) -> dict:
     }
 
 def no_orquestrador(estado: Estado, config: RunnableConfig) -> dict:
-    msg_usuario = estado["messages"][-1]
-    conteudo_entrada = estado.get("saida_especialista") or msg_usuario.content or ""
+    conteudo_entrada = estado.get("saida_especialista") or estado.get("input") or ""
     mensagens = [
         {"role": "system", "content": ORQUESTRADOR_PROMPT_COMPLETO},
         {"role": "human", "content": conteudo_entrada},
@@ -183,6 +171,10 @@ def roteador_guardrail_entrd(estado: Estado) -> str:
         return "fim"
     return "roteador"
 
+# === ^^^^^^^^^^ Quero e TENHO que estudar isso ^^^^^^^^^^ ===
+
+
+# ==============================================================================
 # FUNÇÃO DE DECISÃO
 # ==============================================================================
 def decidir_especialista(estado: Estado) -> str:
@@ -192,13 +184,10 @@ def decidir_especialista(estado: Estado) -> str:
     if not texto.startswith("ROUTE="):
         return "fim"   # resposta direta já foi escrita no nó do roteador
 
-    partes = texto.split("=", 1)
-    if len(partes) < 2 or not partes[1]:
-        return "analise_dados" # Fallback seguro
-    
-    rota = partes[1].strip().lower()
+    rota = texto.split("\n", 1)[0].split("=", 1)[1].strip().lower()
     if rota in ("motorista", "alerta", "dashboard", "analise_dados"):
         return "analise_dados"
+    # planejamento removido
     elif rota in ("faq", "duvidas"):
         return "faq"
     return "analise_dados"
@@ -238,8 +227,9 @@ grafo.add_conditional_edges(
     },
 )
 
-grafo.add_edge("analise_dados",   "guardrail_saida")
-grafo.add_edge("guardrail_saida", END)
+grafo.add_edge("analise_dados",   "orquestrador")
+grafo.add_edge("orquestrador", "guardrail_saida")
+grafo.add_edge("guardrail_saida", END)   # resposta do orquestrador passa pelo guardrail de saída para revisão final
 grafo.add_edge("faq",          END)
 
 # Memória centralizada no grafo — persiste o Estado inteiro entre turns
