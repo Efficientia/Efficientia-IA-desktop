@@ -2,11 +2,11 @@ async function enviar() {
     const input = document.getElementById('userInput');
     const chat = document.getElementById('chat');
     const loader = document.getElementById('loader');
-    const pergunta = input.value;
+    const message = input.value;
     
-    if (!pergunta) return;
+    if (!message) return;
 
-    chat.innerHTML += `<p><b>Você:</b> ${pergunta}</p>`;
+    chat.innerHTML += `<p><b>Você:</b> ${message}</p>`;
     input.value = '';
     loader.style.display = 'block';
 
@@ -15,8 +15,9 @@ async function enviar() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                session_id: "user123", 
-                pergunta: pergunta 
+                user_id: "user123", 
+                session_id: "session123", 
+                message: message 
             })
         });
 
@@ -25,7 +26,7 @@ async function enviar() {
         }
 
         const data = await response.json();
-        chat.innerHTML += `<p>${data.resposta}</p>`;
+        chat.innerHTML += `<p><b>Cinttia:</b> ${data.response}</p>`;
         chat.scrollTop = chat.scrollHeight;
     } catch (error) {
         chat.innerHTML += `<p style="color: red;"><b>Erro:</b> ${error.message}</p>`;
