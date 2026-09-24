@@ -3,7 +3,7 @@ from typing import Annotated, TypedDict
 from src.app.llms import llm_gemini, llm_groq, llm_rapido, llm_especialista
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import MessagesState
-from langchain_core.messages import RemoveMessage
+from langchain_core.messages import RemoveMessage, HumanMessage
 from langgraph.prebuilt import create_react_agent
 
 
@@ -247,7 +247,7 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
         "agentes_chamados":   [],
         "rota": "",
         "mapa_pii": {},
-        "input": "",
+        "messages": [HumanMessage(content=pergunta_usuario)],
         "resposta_final": "",
         "saida_especialista": "",
     }
