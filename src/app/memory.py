@@ -7,13 +7,9 @@ from src.app.guardrail import guardrail_saida
 from datetime import datetime
 
 # Conexão Global
-<<<<<<< HEAD
-client = MongoClient(MONGODB_URI or "mongodb://localhost:27017")
-db = client[MONGO_DB_NAME]
-=======
+
 client = MongoClient(MONGO_URI or "mongodb://localhost:27017")
-db = client[MONGO_DB_NAME or "assessor"]
->>>>>>> 765d5af33ea99538feefd65fbb80e238378d59e6
+db = client[MONGO_DB_NAME]
 sessoes = db["sessoes"]
 try:
     sessoes.drop_index("session_id_1")
