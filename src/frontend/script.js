@@ -1,12 +1,14 @@
 async function enviar() {
     const input = document.getElementById('userInput');
     const chat = document.getElementById('chat');
+    const loader = document.getElementById('loader');
     const pergunta = input.value;
     
     if (!pergunta) return;
 
     chat.innerHTML += `<p><b>Você:</b> ${pergunta}</p>`;
     input.value = '';
+    loader.style.display = 'block';
 
     try {
         const response = await fetch('/chat', {
@@ -27,6 +29,8 @@ async function enviar() {
         chat.scrollTop = chat.scrollHeight;
     } catch (error) {
         chat.innerHTML += `<p style="color: red;"><b>Erro:</b> ${error.message}</p>`;
+    } finally {
+        loader.style.display = 'none';
     }
 }
 
