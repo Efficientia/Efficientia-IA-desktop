@@ -24,7 +24,7 @@ GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY")
 GOOGLE_API_KEY  = os.getenv("GOOGLE_API_KEY", GEMINI_API_KEY)
 DATABASE_URL    = os.getenv("DATABASE_URL")
-MONGODB_URI     = os.getenv("MONGO_URI")
+MONGO_URI     = os.getenv("MONGO_URI")
 MONGO_DB_NAME   = os.getenv("MONGO_DB_NAME", "gestao_dados")
 MONGO_IP        = os.getenv("MONGO_IP")
 MONGO_USER      = os.getenv("MONGO_USER")
@@ -35,7 +35,7 @@ OBRIGATORIAS = {
     "GROQ_API_KEY":   GROQ_API_KEY,
     "GOOGLE_API_KEY": GOOGLE_API_KEY,
     "DATABASE_URL":   DATABASE_URL,
-    "MONGODB_URI":    MONGODB_URI,
+    "MONGO_URI":      MONGO_URI,
     "MONGO_DB_NAME":  MONGO_DB_NAME,
     "MONGO_IP":       MONGO_IP,
     "MONGO_USER":     MONGO_USER,

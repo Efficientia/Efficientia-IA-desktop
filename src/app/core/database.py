@@ -1,6 +1,6 @@
 import os
 import re
-from src.app.config import MONGODB_URI, MONGO_DB_NAME, DATABASE_URL
+from src.app.config import MONGO_URI, MONGO_DB_NAME, DATABASE_URL
 from sqlalchemy import create_engine, text
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any
 # ==============================================================================
 # CONFIGURAÇÃO DE CONEXÃO MONGODB
 # ==============================================================================
-MONGO_URI = MONGODB_URI
+MONGO_URI = MONGO_URI
 DB_NAME = MONGO_DB_NAME
 
 client = AsyncIOMotorClient(MONGO_URI)

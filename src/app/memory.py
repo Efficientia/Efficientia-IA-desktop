@@ -1,14 +1,19 @@
 import os
 from pymongo import MongoClient
-from src.app.config import MONGODB_URI, MONGO_DB_NAME
+from src.app.config import MONGO_URI, MONGO_DB_NAME
 from src.app.llms import llm
 from src.app.guardrail import guardrail_saida
 
 from datetime import datetime
 
 # Conexão Global
+<<<<<<< HEAD
 client = MongoClient(MONGODB_URI or "mongodb://localhost:27017")
 db = client[MONGO_DB_NAME]
+=======
+client = MongoClient(MONGO_URI or "mongodb://localhost:27017")
+db = client[MONGO_DB_NAME or "assessor"]
+>>>>>>> 765d5af33ea99538feefd65fbb80e238378d59e6
 sessoes = db["sessoes"]
 try:
     sessoes.drop_index("session_id_1")
