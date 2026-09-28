@@ -2,7 +2,10 @@ import time
 import uuid
 import json
 import logging
+import os
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.app.graph import executar_fluxo_assistente
 
@@ -11,6 +14,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("efficientia_sre")
 
 app = FastAPI(title="Efficientia API")
+
+# --- SERVING FRONTEND ---
+# Monta a pasta de arquivos estáticos (CSS, JS)
+app.mount("/static", StaticFiles(directory="src/frontend"), name="static")
+
+# Rota para servir o index.html
+@app.get("/")
+async def read_root():
+    return FileResponse("src/frontend/index.html")
+# ------------------------
 
 # Middleware para SRE (Latência, Request ID e Taxa de Erro)
 @app.middleware("http")
