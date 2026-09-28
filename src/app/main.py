@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.app.graph import executar_fluxo_assistente
+from google.genai.errors import ServerError
 
 # Configuração de Logging para SRE
 logging.basicConfig(level=logging.INFO)
@@ -61,8 +62,15 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     # O grafo já gerencia o estado e o MemorySaver
-    resposta = executar_fluxo_assistente(
-        pergunta_usuario=request.message,
-        session_id=request.session_id
-    )
-    return {"response": resposta}
+    try:
+        resposta = executar_fluxo_assistente(
+            pergunta_usuario=request.message,
+            session_id=request.session_id
+        )
+        return {"response": resposta}
+    except ServerError as e:
+        if e.status_code == 503:
+            return {"response": {"resposta": "🤖 Opa! Estou passando por um momento de alta demanda. Pode tentar de novo em alguns segundos?"}}
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error")
