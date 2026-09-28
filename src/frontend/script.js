@@ -4,11 +4,15 @@ async function enviar() {
     const loader = document.getElementById('loader');
     const message = input.value;
     
-    if (!message) return;
+    if (!message.trim()) return;
 
-    chat.innerHTML += `<p><b>Você:</b> ${message}</p>`;
+    // Adiciona mensagem do usuário
+    chat.innerHTML += `<div class="message user">${message}</div>`;
     input.value = '';
-    loader.style.display = 'block';
+    
+    // Mostra loader
+    loader.style.display = 'flex';
+    chat.scrollTop = chat.scrollHeight;
 
     try {
         const response = await fetch('/chat', {
@@ -26,10 +30,14 @@ async function enviar() {
         }
 
         const data = await response.json();
-        chat.innerHTML += `<p><b>Cinttia:</b> ${data.response}</p>`;
+        
+        // Renderiza Markdown usando marked
+        const botResponseHTML = marked.parse(data.response.resposta);
+        
+        chat.innerHTML += `<div class="message bot">${botResponseHTML}</div>`;
         chat.scrollTop = chat.scrollHeight;
     } catch (error) {
-        chat.innerHTML += `<p style="color: red;"><b>Erro:</b> ${error.message}</p>`;
+        chat.innerHTML += `<div class="message bot" style="color:red;">Erro: ${error.message}</div>`;
     } finally {
         loader.style.display = 'none';
     }
