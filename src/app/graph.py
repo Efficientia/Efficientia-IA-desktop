@@ -1,6 +1,6 @@
 import operator
 from typing import Annotated, TypedDict
-from src.app.llms import llm_gemini, llm_groq, llm_rapido, llm_especialista
+from src.app.llms import llm_rapido_com_fallback, llm_especialista_com_fallback
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import MessagesState
 from langchain_core.messages import RemoveMessage, HumanMessage
@@ -30,10 +30,10 @@ from datetime import datetime
 agora = datetime.now().strftime("%H:%M:%S")
 
 
-router_app       = create_react_agent(model=llm_rapido,       tools=TOOLS_MEMORIA,                prompt=ROUTER_PROMPT_COMPLETO)
-analise_dados_app = create_react_agent(model=llm_especialista, tools=TOOLS + TOOLS_MEMORIA,        prompt=ANALISE_DADOS_PROMPT_COMPLETO)
+router_app       = create_react_agent(model=llm_rapido_com_fallback,       tools=TOOLS_MEMORIA,                prompt=ROUTER_PROMPT_COMPLETO)
+analise_dados_app = create_react_agent(model=llm_especialista_com_fallback, tools=TOOLS + TOOLS_MEMORIA,        prompt=ANALISE_DADOS_PROMPT_COMPLETO)
 # Orquestrador utiliza invocação direta do modelo com prompt de sistema (sem tools)
-faq_app          = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
+faq_app          = create_react_agent(model=llm_rapido_com_fallback,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
 
 # ==============================================================================
 # ESTADO

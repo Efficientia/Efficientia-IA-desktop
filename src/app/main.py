@@ -69,8 +69,8 @@ async def chat_endpoint(request: ChatRequest):
         )
         return {"response": resposta}
     except ServerError as e:
-        if e.status_code == 503:
+        # Verifica se o código de erro está disponível no atributo 'code' da exceção ou dentro do objeto de erro
+        error_code = getattr(e, 'code', None)
+        if error_code == 503:
             return {"response": {"resposta": "🤖 Opa! Estou passando por um momento de alta demanda. Pode tentar de novo em alguns segundos?"}}
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-    except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error")
