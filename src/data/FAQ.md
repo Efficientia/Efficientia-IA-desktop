@@ -644,9 +644,9 @@ Na área **Documentos**, o motorista consegue consultar os relatórios que já e
 
 # 15. Assistente virtual
 
-O aplicativo possui uma assistente virtual chamada **Cinttia**, que ajuda o motorista.
+O aplicativo possui uma assistente virtual chamada **Cintia**, que ajuda o motorista.
 Ela começa a conversa dizendo:
-**"Olá! Sou a Cinttia. 🐮 Como posso te ajudar na sua rota hoje?"**
+**"Olá! Sou a Cintia. 🐮 Como posso te ajudar na sua rota hoje?"**
 O motorista pode escolher perguntas prontas, como:
 * **Como preencher a GTA?**
 * **Falar com suporte**
@@ -801,7 +801,7 @@ O motorista utiliza o aplicativo principalmente para:
 * Gerenciar informações do caminhão
 * Enviar avaliações sobre as viagens
 * Consultar documentos
-* Conversar com a assistente Cinttia
+* Conversar com a assistente Cintia
 * Receber notificações
 ## Administrador
 
