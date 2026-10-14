@@ -12,6 +12,7 @@ import os
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.runnables import RunnableConfig
 from src.app.tools.analise_dados import TOOLS
+from src.app.tools.qlik_mcp import TOOLS_QLIK
 from src.app.tools.faq_tools import faq_retriever
 from src.app.tools.memoria import TOOLS_MEMORIA
 from src.app.tools.planejamento import TOOLS_AGENDA
@@ -22,6 +23,7 @@ from src.app.core.prompts import (
     PLANEJAMENTO_PROMPT_COMPLETO,
     ORQUESTRADOR_PROMPT_COMPLETO,
     FAQ_PROMPT_COMPLETO,
+    DASHBOARD_PROMPT_COMPLETO,
 )
 from src.app.guardrail import guardrail_entrada, guardrail_saida, anonimizar_entrada, desanonimizar_saida, _limpar_protocolos
 import re
@@ -33,6 +35,7 @@ agora = datetime.now().strftime("%H:%M:%S")
 
 router_app       = create_react_agent(model=llm_rapido,       tools=[],                            prompt=ROUTER_PROMPT_COMPLETO)
 analise_dados_app = create_react_agent(model=llm_especialista, tools=TOOLS + TOOLS_MEMORIA,        prompt=ANALISE_DADOS_PROMPT_COMPLETO)
+dashboard_app    = create_react_agent(model=llm_especialista, tools=TOOLS_QLIK,                   prompt=DASHBOARD_PROMPT_COMPLETO)
 # Orquestrador utiliza invocação direta do modelo com prompt de sistema (sem tools)
 faq_app          = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
 
@@ -143,6 +146,21 @@ def no_faq(estado: Estado, config: RunnableConfig) -> dict:
     }
 
 
+def no_dashboard(estado: Estado, config: RunnableConfig) -> dict:
+    entrada = estado.get("input") or ""
+    pergunta = _extrair_pergunta_protocolo(entrada) or entrada
+    saida = dashboard_app.invoke(
+        {"messages": [{"role": "human", "content": pergunta}]},
+        config=config,
+    )
+    texto = _obter_texto(saida["messages"][-1])
+    texto = _limpar_protocolos(texto)
+    return {
+        "saida_especialista": texto,
+        "resposta_final":     texto,
+        "agentes_chamados":   ["dashboard"],
+    }
+
 def no_orquestrador(estado: Estado, config: RunnableConfig) -> dict:
     conteudo_entrada = estado.get("saida_especialista") or estado.get("input") or ""
     mensagens = [
@@ -210,7 +228,9 @@ def decidir_especialista(estado: Estado) -> str:
         return "fim"   # resposta direta já foi escrita no nó do roteador
 
     rota = texto.split("\n", 1)[0].split("=", 1)[1].strip().lower()
-    if rota in ("motorista", "alerta", "dashboard", "analise_dados"):
+    if rota == "dashboard":
+        return "dashboard"
+    elif rota in ("motorista", "alerta", "analise_dados"):
         return "analise_dados"
     # planejamento removido
     elif rota in ("faq", "duvidas"):
@@ -224,13 +244,13 @@ def decidir_especialista(estado: Estado) -> str:
 # ==============================================================================
 grafo = StateGraph(Estado)
 
-grafo.add_node("roteador",     no_roteador)
+grafo.add_node("roteador",        no_roteador)
 grafo.add_node("analise_dados",   no_analise_dados)
-grafo.add_node("faq",          no_faq)
-grafo.add_node("orquestrador", no_orquestrador)
+grafo.add_node("dashboard",       no_dashboard)
+grafo.add_node("faq",             no_faq)
+grafo.add_node("orquestrador",    no_orquestrador)
 grafo.add_node("guardrail_entrd", no_guardrail)
 grafo.add_node("guardrail_saida", no_guardrail_saida)
-
 grafo.set_entry_point("guardrail_entrd")
 
 grafo.add_conditional_edges(
@@ -247,13 +267,15 @@ grafo.add_conditional_edges(
     decidir_especialista,
     {
         "analise_dados": "analise_dados",
-        "faq":        "faq",
-        "fim":        END,       # resposta direta: sem especialista nem orquestrador
+        "dashboard":    "dashboard",
+        "faq":          "faq",
+        "fim":          END,       # resposta direta: sem especialista nem orquestrador
     },
 )
-grafo.add_edge("analise_dados",   "orquestrador")
-grafo.add_edge("orquestrador", "guardrail_saida")
-grafo.add_edge("faq",          "guardrail_saida")
+grafo.add_edge("analise_dados", "orquestrador")
+grafo.add_edge("dashboard",     "orquestrador")
+grafo.add_edge("orquestrador",  "guardrail_saida")
+grafo.add_edge("faq",           "guardrail_saida")
 grafo.add_edge("guardrail_saida", END)
 # Memória centralizada no grafo — persiste o Estado inteiro entre turns
 memory = MemorySaver()

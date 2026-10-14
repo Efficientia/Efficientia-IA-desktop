@@ -2,3 +2,6 @@
 comandos.txt
 seed_db.py
 banco.json
+__pycache__/
+*.py[cod]
+.omp-agents/

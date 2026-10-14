@@ -30,6 +30,12 @@ MONGO_IP        = os.getenv("MONGO_IP")
 MONGO_USER      = os.getenv("MONGO_USER")
 MONGO_PASSWORD  = os.getenv("MONGO_PASSWORD")
 
+# Credenciais Qlik Cloud (OAuth 2.0 Machine-to-Machine para Qlik MCP)
+ID_QLIK         = os.getenv("ID_QLIK") or os.getenv("QLIK_CLIENT_ID")
+SECRET_QLIK     = os.getenv("SECRET_QLIK") or os.getenv("QLIK_CLIENT_SECRET")
+QLIK_TENANT_URL = os.getenv("QLIK_TENANT_URL")
+QLIK_APP_ID     = os.getenv("QLIK_APP_ID")
+QLIK_SCOPES     = os.getenv("QLIK_SCOPES", "user_default mcp:execute")
 OBRIGATORIAS = {
     "GEMINI_API_KEY": GEMINI_API_KEY,
     "GROQ_API_KEY":   GROQ_API_KEY,
@@ -51,4 +57,15 @@ def validar_config() -> list[str]:
             problemas.append(f"Variável ausente no .env: {nome}")
     if not FAQ_PATH.exists():
         problemas.append(f"FAQ não encontrado em: {FAQ_PATH}")
+    return problemas
+
+def validar_config_qlik() -> list[str]:
+    """Valida as credenciais necessárias exclusivamente para o Agente de Dashboard (Qlik MCP)."""
+    problemas = []
+    if not ID_QLIK:
+        problemas.append("Variável ausente no .env: ID_QLIK (ou QLIK_CLIENT_ID)")
+    if not SECRET_QLIK:
+        problemas.append("Variável ausente no .env: SECRET_QLIK (ou QLIK_CLIENT_SECRET)")
+    if not QLIK_TENANT_URL:
+        problemas.append("Variável ausente no .env: QLIK_TENANT_URL")
     return problemas
