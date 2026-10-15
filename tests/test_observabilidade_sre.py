@@ -194,6 +194,22 @@ def test_endpoint_monitor_contrato_completo():
     assert payload["slo"]["latencia_p95_limite_ms"] == SLO_LIMITE_P95_MS
     assert payload["slo"]["taxa_erro_limite"] == SLO_LIMITE_TAXA_ERRO
 
+
+def test_dashboard_html_e_data_endpoint():
+    """Valida que o navegador recebe o HTML do Dashboard e /monitor/data entrega JSON."""
+    # 1. Navegador pedindo text/html
+    res_html = client.get("/monitor", headers={"accept": "text/html"})
+    assert res_html.status_code == 200
+    assert "text/html" in res_html.headers.get("content-type", "")
+    assert "Painel de Observabilidade SRE & FinOps" in res_html.text
+
+    # 2. Endpoint direto de dados
+    res_data = client.get("/monitor/data")
+    assert res_data.status_code == 200
+    assert "application/json" in res_data.headers.get("content-type", "")
+    assert "resumo" in res_data.json()
+
+
 if __name__ == "__main__":
     import sys
     testes = [
@@ -204,6 +220,7 @@ if __name__ == "__main__":
         test_passo_2_guardrail_isolamento_de_slo,
         test_passo_3_falha_timeout_e_fallback,
         test_endpoint_monitor_contrato_completo,
+        test_dashboard_html_e_data_endpoint,
     ]
     falhas = 0
     print("\n--- INICIANDO PROTOCOLO SRE DE TESTES ---")
