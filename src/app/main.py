@@ -8,12 +8,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.app.graph import executar_fluxo_assistente
+from src.app.routes.monitor import router as monitor_router
 
 # Configuração de Logging para SRE
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("efficientia_sre")
 
 app = FastAPI(title="Efficientia API")
+
+# --- ROTAS DE OBSERVABILIDADE & SRE ---
+# Registrado antes dos arquivos estáticos para prioridade absoluta no roteador
+app.include_router(monitor_router)
 
 # --- SERVING FRONTEND ---
 # Monta a pasta de arquivos estáticos (CSS, JS)
