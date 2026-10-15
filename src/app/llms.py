@@ -37,3 +37,7 @@ llm_especialista_com_fallback = llm_especialista.with_fallbacks([llm_groq])
 # llm_gemini será o especialista, llm_groq será o backup para rápido
 llm_gemini = llm_especialista_com_fallback
 llm = llm_rapido_com_fallback
+
+# Instrumentação de Observabilidade SRE e FinOps
+from src.app.observabilidade import instrumentar_modelos
+instrumentar_modelos([llm_rapido, llm_especialista, llm_groq])

@@ -11,8 +11,18 @@
 <body>
     <div class="chat-container">
         <header class="chat-header">
-            <h1>Cinttia</h1>
-            <p>Seu assessor inteligente</p>
+            <div class="header-info">
+                <h1>Cinttia</h1>
+                <p>Seu assessor inteligente</p>
+            </div>
+            <button type="button" class="btn-observabilidade" onclick="window.open('/monitor', '_blank')" title="Abrir Painel de Observabilidade SRE & FinOps">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                <span>Observabilidade</span>
+            </button>
         </header>
 
         <div id="chat" class="chat-messages">
@@ -29,6 +39,16 @@
             <div class="spinner"></div> <span>Pensando...</span>
         </div>
     </div>
+
+    <!-- Botão Flutuante de Acesso Rápido ao Painel SRE & FinOps -->
+    <a href="/monitor" target="_blank" class="floating-monitor-btn" title="Acessar Painel SRE & FinOps em tempo real">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+        </svg>
+        <span>Painel SRE / FinOps</span>
+    </a>
     <script src="/static/script.js"></script>
 </body>
 </html>

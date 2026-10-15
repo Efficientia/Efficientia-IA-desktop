@@ -26,6 +26,7 @@ from src.app.core.prompts import (
     DASHBOARD_PROMPT_COMPLETO,
 )
 from src.app.guardrail import guardrail_entrada, guardrail_saida, anonimizar_entrada, desanonimizar_saida, _limpar_protocolos
+from src.app.observabilidade import abrir_execucao, fechar_execucao, coletor_global
 import re
 from datetime import datetime
 
@@ -287,27 +288,70 @@ fluxo_agentes = grafo.compile(checkpointer=memory)
 # FLUXO PRINCIPAL
 # ==============================================================================
 def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
-    estado_inicial = {
-        "messages": [{"role": "human", "content": pergunta_usuario}],
-        "agentes_chamados":   [],
-        "rota": "",
-        "mapa_pii": {},
-        "messages": [HumanMessage(content=pergunta_usuario)],
-        "resposta_final": "",
-        "saida_especialista": "",
-    }
+    execucao_id = abrir_execucao()
+    status = "erro"
+    rota_escolhida = "indefinida"
+    try:
+        estado_inicial = {
+            "messages": [{"role": "human", "content": pergunta_usuario}],
+            "agentes_chamados":   [],
+            "rota": "",
+            "mapa_pii": {},
+            "messages": [HumanMessage(content=pergunta_usuario)],
+            "resposta_final": "",
+            "saida_especialista": "",
+        }
 
-    estado_final = fluxo_agentes.invoke(
-        estado_inicial,
-        config={"configurable": {"thread_id": session_id}},
-    )
+        estado_final = fluxo_agentes.invoke(
+            estado_inicial,
+            config={
+                "configurable": {"thread_id": session_id},
+                "callbacks": [coletor_global],
+            },
+        )
 
-    resposta = estado_final.get("resposta_final") or estado_final.get("saida_especialista") or "Desculpe, não consegui processar a resposta."
-    print(f"[debug] agentes chamados: {estado_final.get('agentes_chamados', [])}")
-    return {
-        "resposta": resposta,
-        "agentes_chamados": estado_final.get("agentes_chamados", []),
-    }
+        agentes = estado_final.get("agentes_chamados", [])
+        mensagens = estado_final.get("messages", [])
+
+        # Identifica se houve bloqueio por guardrail de entrada (Bloqueio != Erro no SRE)
+        bloqueado_guardrail = any(
+            (isinstance(m, dict) and "[GUARDRAIL BLOQUEOU]" in str(m.get("content", "")))
+            or (hasattr(m, "content") and "[GUARDRAIL BLOQUEOU]" in str(m.content))
+            for m in mensagens
+        )
+
+        if bloqueado_guardrail:
+            status = "bloqueado"
+            rota_escolhida = "guardrail_bloqueio"
+        else:
+            status = "ok"
+            if "dashboard" in agentes:
+                rota_escolhida = "dashboard"
+            elif "analise_dados" in agentes:
+                rota_escolhida = "analise_dados"
+            elif "faq" in agentes:
+                rota_escolhida = "faq"
+            elif "roteador" in agentes:
+                rota_escolhida = "roteador_direto"
+            else:
+                rota_escolhida = "geral"
+
+        resposta = estado_final.get("resposta_final") or estado_final.get("saida_especialista") or "Desculpe, não consegui processar a resposta."
+        print(f"[debug] agentes chamados: {agentes} | status_sre: {status} | rota: {rota_escolhida}")
+        return {
+            "resposta": resposta,
+            "agentes_chamados": agentes,
+        }
+    except Exception:
+        status = "erro"
+        raise
+    finally:
+        fechar_execucao(
+            execucao_id=execucao_id,
+            contexto_id=session_id,
+            rota=rota_escolhida,
+            status=status,
+        )
 
 
 # ==============================================================================

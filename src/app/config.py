@@ -30,7 +30,22 @@ MONGO_IP          = os.getenv("MONGO_IP")
 MONGO_USER        = os.getenv("MONGO_USER")
 MONGO_PASSWORD    = os.getenv("MONGO_PASSWORD")
 
-LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
+# Observabilidade e Tracing Profundo (LangSmith)
+LANGSMITH_TRACING_RAW = os.getenv("LANGSMITH_TRACING")
+LANGSMITH_API_KEY     = os.getenv("LANGSMITH_API_KEY")
+LANGSMITH_PROJECT     = os.getenv("LANGSMITH_PROJECT", "cinttia-efficientia")
+LANGSMITH_ENDPOINT    = os.getenv("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com")
+
+if LANGSMITH_API_KEY and (LANGSMITH_TRACING_RAW is None or LANGSMITH_TRACING_RAW.lower() in ("true", "1", "yes")):
+    LANGSMITH_TRACING = "true"
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGSMITH_API_KEY"] = LANGSMITH_API_KEY
+    os.environ["LANGSMITH_PROJECT"] = LANGSMITH_PROJECT
+    os.environ["LANGSMITH_ENDPOINT"] = LANGSMITH_ENDPOINT
+else:
+    LANGSMITH_TRACING = LANGSMITH_TRACING_RAW if LANGSMITH_TRACING_RAW is not None else "false"
+    if LANGSMITH_TRACING_RAW is not None:
+        os.environ["LANGSMITH_TRACING"] = LANGSMITH_TRACING_RAW
 
 # Credenciais Qlik Cloud (OAuth 2.0 Machine-to-Machine para Qlik MCP)
 ID_QLIK           = os.getenv("ID_QLIK") or os.getenv("QLIK_CLIENT_ID")
