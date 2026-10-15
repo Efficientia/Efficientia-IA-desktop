@@ -20,22 +20,24 @@ else:
     FAQ_PATH = DATA_DIR / "FAQ.md"
 
 
-GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY")
-GROQ_API_KEY    = os.getenv("GROQ_API_KEY")
-GOOGLE_API_KEY  = os.getenv("GOOGLE_API_KEY", GEMINI_API_KEY)
-DATABASE_URL    = os.getenv("DATABASE_URL")
-MONGO_URI     = os.getenv("MONGO_URI")
-MONGO_DB_NAME   = os.getenv("MONGO_DB_NAME", "gestao_dados")
-MONGO_IP        = os.getenv("MONGO_IP")
-MONGO_USER      = os.getenv("MONGO_USER")
-MONGO_PASSWORD  = os.getenv("MONGO_PASSWORD")
+GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY      = os.getenv("GROQ_API_KEY")
+GOOGLE_API_KEY    = os.getenv("GOOGLE_API_KEY", GEMINI_API_KEY)
+DATABASE_URL      = os.getenv("DATABASE_URL")
+MONGO_URI         = os.getenv("MONGO_URI")
+MONGO_DB_NAME     = os.getenv("MONGO_DB_NAME", "gestao_dados")
+MONGO_IP          = os.getenv("MONGO_IP")
+MONGO_USER        = os.getenv("MONGO_USER")
+MONGO_PASSWORD    = os.getenv("MONGO_PASSWORD")
+
+LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
 
 # Credenciais Qlik Cloud (OAuth 2.0 Machine-to-Machine para Qlik MCP)
-ID_QLIK         = os.getenv("ID_QLIK") or os.getenv("QLIK_CLIENT_ID")
-SECRET_QLIK     = os.getenv("SECRET_QLIK") or os.getenv("QLIK_CLIENT_SECRET")
-QLIK_TENANT_URL = os.getenv("QLIK_TENANT_URL")
-QLIK_APP_ID     = os.getenv("QLIK_APP_ID")
-QLIK_SCOPES     = os.getenv("QLIK_SCOPES", "user_default mcp:execute")
+ID_QLIK           = os.getenv("ID_QLIK") or os.getenv("QLIK_CLIENT_ID")
+SECRET_QLIK       = os.getenv("SECRET_QLIK") or os.getenv("QLIK_CLIENT_SECRET")
+QLIK_TENANT_URL   = os.getenv("QLIK_TENANT_URL")
+QLIK_APP_ID       = os.getenv("QLIK_APP_ID")
+QLIK_SCOPES       = os.getenv("QLIK_SCOPES", "user_default mcp:execute")
 OBRIGATORIAS = {
     "GEMINI_API_KEY": GEMINI_API_KEY,
     "GROQ_API_KEY":   GROQ_API_KEY,
