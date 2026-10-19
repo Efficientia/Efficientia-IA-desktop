@@ -1,10 +1,10 @@
-# EfficientIA (EficientIA)
+# Cinttia
 
-> Plataforma inteligente baseada em agentes com **FastAPI**, **LangGraph**, **LangChain**, guardrails de segurança, integração de ferramentas analíticas/BI e observabilidade orientada a SRE.
+> Ferramenta inteligente baseada em agentes com **FastAPI**, **LangGraph**, **LangChain**, guardrails de segurança e integração de ferramentas analíticas/BI.
 
 ---
 
-## 📌 Sumário
+## Sumário
 - [Visão Geral](#-visão-geral)
 - [Arquitetura & Principais Componentes](#-arquitetura--principais-componentes)
 - [Stack de Tecnologias](#-stack-de-tecnologias)
@@ -17,13 +17,7 @@
 
 ---
 
-## 🚀 Visão Geral
-
-O **EfficientIA** é uma solução completa de assistência conversacional e análise de dados corporativos. Utiliza orquestração de grafos cognitivos com **LangGraph** para conduzir o raciocínio dos modelos de IA, aplicando camadas rígidas de guardrails de segurança, persistência de memória em sessões, observabilidade completa com métricas de latência e integração com MCP (Model Context Protocol) e dashboards de BI (ex.: Qlik).
-
----
-
-## 🏛 Arquitetura & Principais Componentes
+## Arquitetura & Principais Componentes
 
 1. **API & Interface (FastAPI + Vanilla JS/HTML)**:
    - Roteamento assíncrono para conversação e monitoramento.
@@ -37,12 +31,10 @@ O **EfficientIA** é uma solução completa de assistência conversacional e an�
 5. **Observabilidade & SRE**:
    - Middleware de rastreabilidade (Request ID, latência, taxas de erro).
    - Integração com LangSmith e rotas de telemetria/health em `src/app/observabilidade.py` e `src/app/routes/monitor.py`.
-6. **Tooling Interno (`packages/complexity`)**:
-   - Motor estático para auditoria de complexidade ciclomática/cognitiva e contagem SLOC do código.
 
 ---
 
-## 🛠 Stack de Tecnologias
+## Stack de Tecnologias
 
 - **Backend**: Python 3.10+, FastAPI, Uvicorn, Pydantic v2
 - **Orquestração de IA**: LangGraph, LangChain, LangSmith
@@ -53,12 +45,10 @@ O **EfficientIA** é uma solução completa de assistência conversacional e an�
 
 ---
 
-## 📂 Estrutura do Repositório
+## Estrutura do Repositório
 
 ```text
 .
-├── packages/
-│   └── complexity/          # Motor de análise estática de complexidade de código
 ├── src/
 │   ├── app/
 │   │   ├── core/            # Prompts de sistema e conexões de banco de dados
@@ -81,15 +71,14 @@ O **EfficientIA** é uma solução completa de assistência conversacional e an�
 
 ---
 
-## ⚙️ Pré-requisitos
+## Pré-requisitos
 
 - **Python**: versão `3.10` ou superior.
 - **Git** instalado.
-- *(Opcional)* **Bun**: caso deseje executar o motor de métricas `packages/complexity`.
 
 ---
 
-## 📦 Instalação & Configuração
+## Instalação & Configuração
 
 1. **Clone o repositório:**
    ```bash
@@ -117,22 +106,30 @@ O **EfficientIA** é uma solução completa de assistência conversacional e an�
    Crie um arquivo `.env` na raiz ou dentro de `src/app/.env` com as chaves necessárias:
    ```env
    # Provedores de LLM
-   OPENAI_API_KEY=sua_chave_openai
-   GOOGLE_API_KEY=sua_chave_gemini
+   GEMINI_API_KEY=sua_chave_gemini
    GROQ_API_KEY=sua_chave_groq
 
    # Observabilidade & LangSmith (Opcional)
-   LANGCHAIN_TRACING_V2=true
    LANGCHAIN_API_KEY=sua_chave_langsmith
-   LANGCHAIN_PROJECT=EfficientIA
 
    # Banco de Dados (Opcional se utilizar memória local)
    MONGODB_URI=mongodb://localhost:27017
+   DATABASE_URL=sua_URL
+   MONGO_DB_NAME=nome_do_banco
+   MONGO_IP=xxx.xx.xxx.xx/xx
+   MONGO_USER=seu_nome
+   MONGO_PASSWORD
+
+   # MCP do qlik
+   ID_QLIK="01a13ac06fb3813b8ea8ed7b5d40f98c"
+   SECRET_QLIK=secret_do_qlik
+   QLIK_TENANT_URL="https://{seu_código}.br.qlikcloud.com"
+   QLIK_APP_ID=seu_id
    ```
 
 ---
 
-## 🏃 Execução do Projeto
+## Execução do Projeto
 
 Inicie o servidor de desenvolvimento com recarregamento automático:
 
@@ -146,7 +143,7 @@ Após iniciar:
 
 ---
 
-## 🧪 Testes e Validação
+## Testes e Validação
 
 Execute a suíte de testes com `pytest`:
 
@@ -154,14 +151,9 @@ Execute a suíte de testes com `pytest`:
 pytest tests/
 ```
 
-Para inspecionar a complexidade do código de qualquer arquivo via Bun:
-```bash
-bun run packages/complexity/cli.ts src/app/main.py
-```
-
 ---
 
-## 📊 Endpoints & Observabilidade
+## Endpoints & Observabilidade
 
 - `GET /` — Interface conversacional do usuário.
 - `POST /chat` — Rota de interação conversacional com o agente inteligente.
