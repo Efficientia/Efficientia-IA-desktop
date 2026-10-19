@@ -23,6 +23,7 @@ from src.app.core.prompts import (
     PLANEJAMENTO_PROMPT_COMPLETO,
     ORQUESTRADOR_PROMPT_COMPLETO,
     FAQ_PROMPT_COMPLETO,
+    FAQ_NAV_PROMPT_COMPLETO,
     DASHBOARD_PROMPT_COMPLETO,
 )
 from src.app.guardrail import guardrail_entrada, guardrail_saida, anonimizar_entrada, desanonimizar_saida, _limpar_protocolos
@@ -37,9 +38,8 @@ agora = datetime.now().strftime("%H:%M:%S")
 router_app       = create_react_agent(model=llm_rapido,       tools=[],                            prompt=ROUTER_PROMPT_COMPLETO)
 analise_dados_app = create_react_agent(model=llm_especialista, tools=TOOLS + TOOLS_MEMORIA,        prompt=ANALISE_DADOS_PROMPT_COMPLETO)
 dashboard_app    = create_react_agent(model=llm_especialista, tools=TOOLS_QLIK,                   prompt=DASHBOARD_PROMPT_COMPLETO)
-# Orquestrador utiliza invocação direta do modelo com prompt de sistema (sem tools)
 faq_app          = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
-
+faq_nav_app      = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_NAV_PROMPT_COMPLETO)
 # ==============================================================================
 # ESTADO
 # ==============================================================================
@@ -146,6 +146,21 @@ def no_faq(estado: Estado, config: RunnableConfig) -> dict:
         "agentes_chamados":   ["faq"],
     }
 
+def no_faq_nav(estado: Estado, config: RunnableConfig) -> dict:
+    entrada = estado.get("input") or ""
+    pergunta = _extrair_pergunta_protocolo(entrada) or entrada
+    saida = faq_nav_app.invoke(
+        {"messages": [{"role": "human", "content": pergunta}]},
+        config=config,
+    )
+    texto = _obter_texto(saida["messages"][-1])
+    texto = _limpar_protocolos(texto)
+    return {
+        "saida_especialista": texto,
+        "resposta_final":     texto,
+        "agentes_chamados":   ["faq_nav"],
+    }
+
 
 def no_dashboard(estado: Estado, config: RunnableConfig) -> dict:
     entrada = estado.get("input") or ""
@@ -234,6 +249,8 @@ def decidir_especialista(estado: Estado) -> str:
     elif rota in ("motorista", "alerta", "analise_dados"):
         return "analise_dados"
     # planejamento removido
+    elif rota in ("faq_nav", "navegacao"):
+        return "faq_nav"
     elif rota in ("faq", "duvidas"):
         return "faq"
     return "analise_dados"
@@ -249,6 +266,7 @@ grafo.add_node("roteador",        no_roteador)
 grafo.add_node("analise_dados",   no_analise_dados)
 grafo.add_node("dashboard",       no_dashboard)
 grafo.add_node("faq",             no_faq)
+grafo.add_node("faq_nav",         no_faq_nav)
 grafo.add_node("orquestrador",    no_orquestrador)
 grafo.add_node("guardrail_entrd", no_guardrail)
 grafo.add_node("guardrail_saida", no_guardrail_saida)
@@ -270,6 +288,7 @@ grafo.add_conditional_edges(
         "analise_dados": "analise_dados",
         "dashboard":    "dashboard",
         "faq":          "faq",
+        "faq_nav":      "faq_nav",
         "fim":          END,       # resposta direta: sem especialista nem orquestrador
     },
 )
@@ -277,6 +296,7 @@ grafo.add_edge("analise_dados", "orquestrador")
 grafo.add_edge("dashboard",     "orquestrador")
 grafo.add_edge("orquestrador",  "guardrail_saida")
 grafo.add_edge("faq",           "guardrail_saida")
+grafo.add_edge("faq_nav",       "guardrail_saida")
 grafo.add_edge("guardrail_saida", END)
 # Memória centralizada no grafo — persiste o Estado inteiro entre turns
 memory = MemorySaver()
@@ -329,6 +349,8 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
                 rota_escolhida = "dashboard"
             elif "analise_dados" in agentes:
                 rota_escolhida = "analise_dados"
+            elif "faq_nav" in agentes:
+                rota_escolhida = "faq_nav"
             elif "faq" in agentes:
                 rota_escolhida = "faq"
             elif "roteador" in agentes:
