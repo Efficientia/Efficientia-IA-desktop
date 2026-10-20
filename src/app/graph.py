@@ -155,6 +155,7 @@ def no_faq_nav(estado: Estado, config: RunnableConfig) -> dict:
     )
     texto = _obter_texto(saida["messages"][-1])
     texto = _limpar_protocolos(texto)
+    texto = re.sub(r"^(?:FAQ_NAV|FAQ):\s*", "", texto, flags=re.IGNORECASE).strip()
     return {
         "saida_especialista": texto,
         "resposta_final":     texto,
