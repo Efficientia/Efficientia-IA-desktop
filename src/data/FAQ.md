@@ -302,7 +302,7 @@ Chatbot
 
 Cada célula utiliza ícones de:
 
-✅ disponível
+✅  disponível
 ❌ indisponível
 ➖ parcialmente disponível
 

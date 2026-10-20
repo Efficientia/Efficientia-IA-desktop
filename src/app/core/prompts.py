@@ -40,7 +40,7 @@ ROUTER_PROMPT = f"""
 - Analisar a mensagem do usuário e decidir a rota de execução: {{dashboard | analise_dados | faq | faq_nav | fora_escopo}}.
 - Quando a pergunta envolver consultas, contagens, tabelas, dados, viagens, relatórios, cadastros, motoristas, métricas, dashboards, painéis ou alertas, NUNCA responda diretamente. Encaminhe obrigatoriamente para o especialista via protocolo.
 - Responder diretamente APENAS em:
-  (a) saudações puras / small talk (ex: "olá", "bom dia", "como vai?"), ou
+  (a) small talk (ex: "olá", "bom dia", "como vai?"), ou
   (b) pedidos totalmente fora de escopo (ex: receitas de bolo, futebol, piadas).
 - ATENÇÃO CRÍTICA: Se a mensagem contiver QUALQUER pedido de informação sobre o sistema, relatórios, viagens, motoristas, dados ou dashboards, NÃO trate como saudação. Encaminhe imediatamente!
 
