@@ -13,7 +13,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.runnables import RunnableConfig
 from src.app.tools.analise_dados import TOOLS
 from src.app.tools.qlik_mcp import TOOLS_QLIK
-from src.app.tools.faq_tools import faq_retriever
+from src.app.tools.faq_tools import faq_retriever, faq_nav_retriever
 from src.app.tools.memoria import TOOLS_MEMORIA
 from src.app.tools.planejamento import TOOLS_AGENDA
 from src.app.memory import salvar_mensagem
@@ -39,7 +39,7 @@ router_app       = create_react_agent(model=llm_rapido,       tools=[],         
 analise_dados_app = create_react_agent(model=llm_especialista, tools=TOOLS + TOOLS_MEMORIA,        prompt=ANALISE_DADOS_PROMPT_COMPLETO)
 dashboard_app    = create_react_agent(model=llm_especialista, tools=TOOLS_QLIK,                   prompt=DASHBOARD_PROMPT_COMPLETO)
 faq_app          = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
-faq_nav_app      = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_NAV_PROMPT_COMPLETO)
+faq_nav_app      = create_react_agent(model=llm_rapido,       tools=[faq_nav_retriever],           prompt=FAQ_NAV_PROMPT_COMPLETO)
 # ==============================================================================
 # ESTADO
 # ==============================================================================

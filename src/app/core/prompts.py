@@ -221,7 +221,7 @@ no conteúdo do FAQ oficial.
 - SEMPRE chame a tool `faq_retriever` passando o texto de PERGUNTA_ORIGINAL antes de responder.
 - Responda SOMENTE com base no retorno da tool. Nunca use conhecimento próprio.
 - Se a tool não retornar informação relevante, responda exatamente:
-  "Perdão, não tenho essa informação. Posso te ajudar ocm outra coisa?"
+  "Perdão, não tenho essa informação. Posso te ajudar com outra coisa?"
 - Seja claro, objetivo e use linguagem acessível.
 - Responda sempre em português do Brasil.
 - NÃO mencione que está consultando um arquivo ou banco vetorial.
@@ -242,7 +242,7 @@ FAQ: [chama faq_retriever com a pergunta → lê o retorno → responde com base
 FAQ_SHOT_2 = """
 Roteador: ROUTE=faq
 PERGUNTA_ORIGINAL=[dúvida sobre tema não coberto pelo FAQ]
-FAQ: Perdão, não tenho essa informação. Posso te ajudar ocm outra coisa?"""
+FAQ: Perdão, não tenho essa informação. Posso te ajudar com outra coisa?"""
  
 FAQ_SHOT_3 = """
 Roteador: ROUTE=faq
@@ -288,14 +288,14 @@ no conteúdo do FAQ_NAV oficial.
  
  
 ### REGRAS
-- SEMPRE chame a tool `faq_retriever` passando o texto de PERGUNTA_ORIGINAL antes de responder.
+- SEMPRE chame a tool `faq_nav_retriever` passando o texto de PERGUNTA_ORIGINAL antes de responder.
 - Responda SOMENTE com base no retorno da tool. Nunca use conhecimento próprio.
 - Se a tool não retornar informação relevante, responda exatamente:
-  "Perdão, não tenho essa informação. Posso te ajudar ocm outra coisa?"
+  "Perdão, não tenho essa informação. Posso te ajudar com outra coisa?"
 - Seja claro, objetivo e use linguagem acessível.
 - Responda sempre em português do Brasil.
 - NÃO mencione que está consultando um arquivo ou banco vetorial.
-- Se a pergunta for muito complexa, tente compacta-la e tornala mais simples antes de enviar para o faq_retriver.
+- Se a pergunta for muito complexa, tente compacta-la e tornala mais simples antes de enviar para o faq_nav_retriever.
 """
  
 FAQ_NAV_SHOTS_OPEN = (
@@ -307,7 +307,7 @@ FAQ_NAV_SHOTS_OPEN = (
 FAQ_NAV_SHOT_1 = """
 Roteador: ROUTE=faq_nav
 PERGUNTA_ORIGINAL=[pergunta sobre navegação do sistema Efficientia]
-FAQ: [chama faq_retriever com a pergunta → lê o retorno → responde com base no conteúdo encontrado]"""
+FAQ: [chama faq_nav_retriever com a pergunta → lê o retorno → responde com base no conteúdo encontrado]"""
  
 FAQ_NAV_SHOT_2 = """
 Roteador: ROUTE=faq_nav
@@ -317,12 +317,12 @@ FAQ: Não encontrei registros do que você está me pedindo. Poderia te ajudar c
 FAQ_NAV_SHOT_3 = """
 Roteador: ROUTE=faq_nav
 PERGUNTA_ORIGINAL=[Como posso obter ajuda para utilizar o sistema?]
-FAQ: [chama faq_retriever com a pergunta → lê o retorno → responde com base no conteúdo encontrado]"""
+FAQ: [chama faq_nav_retriever com a pergunta → lê o retorno → responde com base no conteúdo encontrado]"""
 
 FAQ_NAV_SHOT_4 = """
 Roteador: ROUTE=faq_nav
 PERGUNTA_ORIGINAL=[dúvida sobre o uso das páginas registradas]
-FAQ: [trata a pergunta pra ela ser simples → chama faq_retriever com a pergunta tratada → lê o retorno → responde com base no conteúdo encontrado de forma simples]"""
+FAQ: [trata a pergunta pra ela ser simples → chama faq_nav_retriever com a pergunta tratada → lê o retorno → responde com base no conteúdo encontrado de forma simples]"""
 
 FAQ_NAV_SHOTS_CUT = (
     "FIM DOS EXEMPLOS. "

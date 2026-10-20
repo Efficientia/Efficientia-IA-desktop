@@ -40,7 +40,7 @@ flowchart TD
 | **`dashboard`** | Interpretação executiva de dashboards corporativos e métricas associativas do Qlik Cloud. | `llm_especialista` / `TOOLS_QLIK` (Qlik MCP Server) | `orquestrador` |
 | **`analise_dados`** | Inspeção dinâmica de esquemas e execução de queries analíticas no banco PostgreSQL corporativo. | `llm_especialista` / `TOOLS` + `TOOLS_MEMORIA` | `orquestrador` |
 | **`faq`** | Resolução de dúvidas institucionais, políticas e regulatórias com base no FAQ oficial. | `llm_rapido` / `faq_retriever` (FAISS sobre `FAQ.md`) | `guardrail_saida` |
-| **`faq_nav`** | Resolução de dúvidas de uso da interface, menus, telas, abas e navegação do sistema. | `llm_rapido` / `faq_retriever` | `guardrail_saida` |
+| **`faq_nav`** | Resolução de dúvidas de uso da interface, menus, telas, abas e navegação do sistema. | `llm_rapido` / `faq_nav_retriever` (FAISS sobre `FAQ_NAV.md`) | `guardrail_saida` |
 | **`orquestrador`** | Consolidação e refinamento analítico da saída dos especialistas de dados/dashboard. | `llm_rapido` (Invocação direta com persona corporativa) | `guardrail_saida` |
 | **`guardrail_saida`** | Revisão de integridade, desanonimização de dados protegidos e validação de compliance final. | `guardrail_saida` | `END` |
 
