@@ -405,9 +405,19 @@ def renderizar_dashboard_html() -> str:
     </div>
 
     <script>
+        let atualizacaoEmAndamento = false;
+
         async function atualizarDados() {
+            if (atualizacaoEmAndamento) return;
+            atualizacaoEmAndamento = true;
+            const controlador = new AbortController();
+            const timeout = setTimeout(() => controlador.abort(), 10000);
             try {
-                const res = await fetch('/monitor/data');
+                const res = await fetch('/monitor/data', {
+                    cache: 'no-store',
+                    signal: controlador.signal,
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
                 if (!res.ok) return;
                 const d = await res.json();
                 
@@ -499,7 +509,10 @@ def renderizar_dashboard_html() -> str:
                 }
 
             } catch (err) {
-                console.error("Erro ao atualizar monitor:", err);
+                if (err.name !== 'AbortError') console.error("Erro ao atualizar monitor:", err);
+            } finally {
+                clearTimeout(timeout);
+                atualizacaoEmAndamento = false;
             }
         }
 
@@ -508,7 +521,7 @@ def renderizar_dashboard_html() -> str:
             if (document.getElementById('autoRefresh').checked) {
                 atualizarDados();
             }
-        }, 3000);
+        }, 1000);
     </script>
 </body>
 </html>
