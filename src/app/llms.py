@@ -5,7 +5,7 @@ from src.app.config import GEMINI_API_KEY, GROQ_API_KEY
 
 _MODEL_RAPIDO = os.getenv("GEMINI_MODEL_RAPIDO", os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"))
 _MODEL_ESPECIALISTA = os.getenv("GEMINI_MODEL_ESPECIALISTA", os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"))
-_MODEL_GROQ = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+_MODEL_GROQ = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # Modelo rápido para guardrails, roteador e orquestrador
 llm_rapido = ChatGoogleGenerativeAI(
@@ -37,6 +37,9 @@ llm_especialista_com_fallback = llm_especialista.with_fallbacks([llm_groq])
 # llm_gemini será o especialista, llm_groq será o backup para rápido
 llm_gemini = llm_especialista_com_fallback
 llm = llm_rapido_com_fallback
+
+# LLM Juiz (Agent as a Judge) - Groq como titular, com fallback para Gemini
+llm_juiz = llm_groq.with_fallbacks([llm_rapido])
 
 # Instrumentação de Observabilidade SRE e FinOps
 from src.app.observabilidade import instrumentar_modelos

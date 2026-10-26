@@ -27,6 +27,7 @@ from src.app.core.prompts import (
     DASHBOARD_PROMPT_COMPLETO,
 )
 from src.app.guardrail import guardrail_entrada, guardrail_saida, anonimizar_entrada, desanonimizar_saida, _limpar_protocolos
+from src.app.judge import avaliar_resposta_juiz
 from src.app.observabilidade import abrir_execucao, fechar_execucao, coletor_global
 import re
 from datetime import datetime
@@ -50,6 +51,7 @@ class Estado(MessagesState):                                  # ID da sessão
     input: str                 # pergunta (já anonimizada) repassada entre os nós
     resposta_final: str        # resposta que será devolvida ao usuário
     saida_especialista: str    # saída do agente especialista, antes do orquestrador
+    veredito_juiz:      str    # auditoria do agente juiz (Groq)
 
 # ==============================================================================
 
@@ -96,8 +98,18 @@ def _extrair_pergunta_protocolo(texto: str) -> str:
 
 
 def no_roteador(estado: Estado, config: RunnableConfig) -> dict:
-    # Manter janela deslizante de no máximo as últimas 6 mensagens para não inflar o contexto
+    # Confirmações curtas preservam a intenção operacional do turno anterior.
     mensagens_recentes = list(estado["messages"])[-6:]
+    if len(mensagens_recentes) >= 2:
+        atual = _obter_texto(mensagens_recentes[-1]).strip().casefold()
+        anterior = _obter_texto(mensagens_recentes[-2]).strip()
+        confirmacoes = {"sim", "pode", "pode sim", "mostre", "mostre os dados", "isso", "quero", "ok", "claro"}
+        termos_operacionais = ("viagem", "viagens", "relatório", "relatorios", "dados", "motorista", "dashboard", "métrica", "metricas")
+        if atual.rstrip(".!?") in confirmacoes and any(t in anterior.casefold() for t in termos_operacionais):
+            return {
+                "input": f"ROUTE=analise_dados\nPERGUNTA_ORIGINAL=[{anterior}]",
+                "agentes_chamados": ["roteador"],
+            }
     saida = router_app.invoke({"messages": mensagens_recentes}, config=config)
     texto = _obter_texto(saida["messages"][-1])
 
@@ -192,6 +204,32 @@ def no_orquestrador(estado: Estado, config: RunnableConfig) -> dict:
         "agentes_chamados": ["orquestrador"],
     }
 
+def no_juiz(estado: Estado, config: RunnableConfig) -> dict:
+    pergunta = estado.get("input") or ""
+    if "PERGUNTA_ORIGINAL=" in pergunta:
+        pergunta = _extrair_pergunta_protocolo(pergunta)
+    elif not pergunta and estado.get("messages"):
+        for m in reversed(estado["messages"]):
+            if getattr(m, "type", None) == "human" or getattr(m, "role", None) == "human":
+                pergunta = _obter_texto(m)
+                break
+
+    candidata = estado.get("resposta_final") or estado.get("saida_especialista") or ""
+    veredito = avaliar_resposta_juiz(
+        pergunta_usuario=pergunta,
+        resposta_candidata=candidata,
+        rota=estado.get("rota", ""),
+    )
+    texto_refinado = veredito["conteudo"]
+
+    return {
+        "saida_especialista": texto_refinado,
+        "resposta_final": texto_refinado,
+        "veredito_juiz": f"{veredito['status']}: {veredito['avaliacao']}",
+        "agentes_chamados": ["juiz"],
+        "messages": [{"role": "system", "content": f"[JUIZ GROQ] {veredito['status']}: {veredito['avaliacao']}"}],
+    }
+
 
 
 # === Quero e TENHO que estudar isso ===
@@ -269,6 +307,7 @@ grafo.add_node("dashboard",       no_dashboard)
 grafo.add_node("faq",             no_faq)
 grafo.add_node("faq_nav",         no_faq_nav)
 grafo.add_node("orquestrador",    no_orquestrador)
+grafo.add_node("juiz",            no_juiz)
 grafo.add_node("guardrail_entrd", no_guardrail)
 grafo.add_node("guardrail_saida", no_guardrail_saida)
 grafo.set_entry_point("guardrail_entrd")
@@ -290,14 +329,15 @@ grafo.add_conditional_edges(
         "dashboard":    "dashboard",
         "faq":          "faq",
         "faq_nav":      "faq_nav",
-        "fim":          END,       # resposta direta: sem especialista nem orquestrador
+        "fim":          "juiz",       # resposta direta: passa pela auditoria executiva do juiz
     },
 )
 grafo.add_edge("analise_dados", "orquestrador")
 grafo.add_edge("dashboard",     "orquestrador")
-grafo.add_edge("orquestrador",  "guardrail_saida")
-grafo.add_edge("faq",           "guardrail_saida")
-grafo.add_edge("faq_nav",       "guardrail_saida")
+grafo.add_edge("orquestrador",  "juiz")
+grafo.add_edge("faq",           "juiz")
+grafo.add_edge("faq_nav",       "juiz")
+grafo.add_edge("juiz",          "guardrail_saida")
 grafo.add_edge("guardrail_saida", END)
 # Memória centralizada no grafo — persiste o Estado inteiro entre turns
 memory = MemorySaver()

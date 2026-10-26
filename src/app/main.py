@@ -77,7 +77,7 @@ async def chat_endpoint(request: ChatRequest):
         # Retorna uma resposta amigável em vez de 500 Internal Server Error
         return {
             "response": {
-                "resposta": "🤖 Ops... tive um problema técnico ao processar sua solicitação (talvez a conexão com o banco?). Por favor, tente novamente em breve.",
+                "resposta": "Não foi possível concluir a consulta no momento devido a uma instabilidade temporária na integração com os serviços de dados. Por favor, tente novamente em instantes ou verifique os apontamentos operacionais.",
                 "agentes_chamados": []
             }
         }
