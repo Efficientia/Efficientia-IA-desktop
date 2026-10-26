@@ -39,6 +39,9 @@ TABELA_PRECOS_POR_MILHAO: dict[str, tuple[float, float]] = {
     "llama-3.3-70b":           (0.59, 0.79),
     "llama-3.1-70b":           (0.59, 0.79),
     "llama-3.1-8b-instant":    (0.05, 0.08),
+    "openai/gpt-oss-120b":     (0.59, 0.79),
+    "openai/gpt-oss-20b":      (0.15, 0.30),
+    "qwen/qwen3.8-27b":        (0.20, 0.40),
     # OpenAI & Fallbacks genéricos
     "gpt-4o":                  (2.50, 10.00),
     "gpt-4o-mini":             (0.15, 0.60),
@@ -54,6 +57,7 @@ MODELO_ESPERADO_POR_ETAPA: dict[str, str] = {
     "guardrail_entrd":    "gemini",
     "guardrail_entrada":  "gemini",
     "guardrail_saida":    "gemini",
+    "juiz":               "groq",
 }
 
 # Parâmetros de Retenção e SLO (Service Level Objectives)

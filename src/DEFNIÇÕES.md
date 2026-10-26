@@ -114,3 +114,13 @@ Como a IA vai ser utilizada para auxiliar para dar dicas e insights textuais, co
 
 ## Escalabilidade
 **esperar aula do Grilo**
+
+---
+
+## Arquitetura do Agente Juiz (Agent as a Judge - Groq)
+O sistema conta com um **Agent as a Judge** permanente no fluxo do LangGraph (`no_juiz`), posicionado antes da entrega final ao usuário.
+- **Provedor e Modelo:** Groq (Llama / OSS 120B) com fallback gracioso para Gemini Rápido.
+- **Missão:**
+  1. **Auditoria de Groundedness (Fidelidade Factual):** Garantir conformidade com a política de Zero Alucinação, certificando que todas as métricas, contagens e diagnósticos possuem respaldo factual direto no retorno do especialista.
+  2. **Descaracterização de IA ("De-AI" / Tom Executivo):** Eliminar sistematicamente saudações robóticas redundantes, clichês subservientes ("Espero ter ajudado", "Como um modelo de IA"), desculpas mecânicas e emojis infantis ou decorativos, convertendo a comunicação em relatórios e diagnósticos executivos sóbrios no padrão corporativo.
+  3. **Estrutura Executiva Acionável:** Assegurar que diagnósticos sigam o padrão: **Fato Observado + Impacto no Negócio + Recomendação Prática**.
