@@ -8,6 +8,7 @@ import os
 import re
 import uuid
 from src.app.llms import llm_rapido
+from src.app.observabilidade import registrar_evento_guardrail
 
 llm = llm_rapido
 
@@ -27,8 +28,16 @@ PII = [
 # ==============================================================================
 def _limpar_protocolos(texto: str) -> str:
     """Remove protocolos internos (ROUTE=, PERGUNTA_ORIGINAL=) do LLM."""
+    if not texto:
+        return ""
+    teve_protocolo = "ROUTE=" in texto or "PERGUNTA_ORIGINAL=" in texto
     texto = re.sub(r"ROUTE=\w+", "", texto)
     texto = re.sub(r"PERGUNTA_ORIGINAL=\[.*?\]", "", texto, flags=re.DOTALL)
+    if teve_protocolo:
+        try:
+            registrar_evento_guardrail("protocolo_limpo", "higienizado", "Tags internas ROUTE/PERGUNTA removidas")
+        except Exception:
+            pass
     return texto.strip()
 
 def _obter_texto(conteudo) -> str:
@@ -57,6 +66,10 @@ def _obter_texto(conteudo) -> str:
     return str(c).strip()
 
 def _bloquear(motivo, mensagem):
+    try:
+        registrar_evento_guardrail(motivo, "bloqueado", mensagem[:60])
+    except Exception:
+        pass
     return {"bloqueado": True, "motivo": motivo, "mensagem": mensagem}
 
 def _aprovado():
@@ -64,6 +77,7 @@ def _aprovado():
 
 def _saida_ok(conteudo):
     return {"bloqueado": False, "motivo": "saida_revisada", "conteudo": conteudo}
+
 # ==============================================================================
 # ANONIMIZAÇÃO
 # ==============================================================================
@@ -76,6 +90,10 @@ def anonimizar_entrada(texto):
             token = f"[PII_{tipo}_{uuid.uuid4().hex[:6]}]"
             mapa[token] = valor
             texto = texto.replace(valor, token, 1)
+            try:
+                registrar_evento_guardrail("pii_anonimizado", "mascarado", tipo)
+            except Exception:
+                pass
 
     return texto, mapa
 
@@ -204,7 +222,12 @@ def guardrail_saida(resposta, mapa_pii, restaurar_pii=False):
 
     # 1. Remove PII que o modelo tenha gerado
     for tipo, padrao in PII:
-        resposta = re.sub(padrao, f"[{tipo} OMITIDO]", resposta)
+        if re.search(padrao, resposta):
+            resposta = re.sub(padrao, f"[{tipo} OMITIDO]", resposta)
+            try:
+                registrar_evento_guardrail("pii_anonimizado", "redigido_saida", tipo)
+            except Exception:
+                pass
 
     # 3. Revisão de compliance
     resp_llm = llm.invoke(_PROMPT_COMPLIANCE.format(resposta=resposta))
