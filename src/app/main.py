@@ -67,11 +67,16 @@ class ChatRequest(BaseModel):
 async def chat_endpoint(request: ChatRequest):
     try:
         # O grafo já gerencia o estado e o MemorySaver
-        resposta = executar_fluxo_assistente(
+        resultado = executar_fluxo_assistente(
             pergunta_usuario=request.message,
             session_id=request.session_id
         )
-        return {"response": resposta}
+        return {
+            "response": {
+                "resposta": resultado.get("resposta"),
+                "agentes_chamados": resultado.get("agentes_chamados", []),
+            }
+        }
     except Exception as e:
         logger.error(f"Erro crítico no endpoint /chat: {str(e)}")
         # Retorna uma resposta amigável em vez de 500 Internal Server Error

@@ -28,7 +28,7 @@ from src.app.core.prompts import (
 )
 from src.app.guardrail import guardrail_entrada, guardrail_saida, anonimizar_entrada, desanonimizar_saida, _limpar_protocolos
 from src.app.judge import avaliar_resposta_juiz
-from src.app.observabilidade import abrir_execucao, fechar_execucao, coletor_global
+from src.app.observabilidade import abrir_execucao, fechar_execucao, coletor_global, listar_execucoes
 import re
 from datetime import datetime
 
@@ -196,7 +196,7 @@ def no_orquestrador(estado: Estado, config: RunnableConfig) -> dict:
         {"role": "system", "content": ORQUESTRADOR_PROMPT_COMPLETO},
         {"role": "human", "content": conteudo_entrada},
     ]
-    resp = llm_rapido.invoke(mensagens)
+    resp = llm_rapido.invoke(mensagens, config=config)
     texto = _obter_texto(resp)
     texto = _limpar_protocolos(texto)
     return {
@@ -219,6 +219,7 @@ def no_juiz(estado: Estado, config: RunnableConfig) -> dict:
         pergunta_usuario=pergunta,
         resposta_candidata=candidata,
         rota=estado.get("rota", ""),
+        config=config,
     )
     texto_refinado = veredito["conteudo"]
 
@@ -352,6 +353,8 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
     execucao_id = abrir_execucao()
     status = "erro"
     rota_escolhida = "indefinida"
+    erro_detalhe = None
+    veredito_juiz = "APROVADO"
     try:
         estado_inicial = {
             "messages": [{"role": "human", "content": pergunta_usuario}],
@@ -373,6 +376,7 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
 
         agentes = estado_final.get("agentes_chamados", [])
         mensagens = estado_final.get("messages", [])
+        veredito_juiz = estado_final.get("veredito_juiz") or "APROVADO"
 
         # Identifica se houve bloqueio por guardrail de entrada (Bloqueio != Erro no SRE)
         bloqueado_guardrail = any(
@@ -404,9 +408,14 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
         return {
             "resposta": resposta,
             "agentes_chamados": agentes,
+            "execucao_id": execucao_id,
+            "status_sre": status,
+            "rota": rota_escolhida,
+            "veredito_juiz": veredito_juiz,
         }
-    except Exception:
+    except Exception as e:
         status = "erro"
+        erro_detalhe = str(e)
         raise
     finally:
         fechar_execucao(
@@ -414,9 +423,5 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
             contexto_id=session_id,
             rota=rota_escolhida,
             status=status,
+            erro_resumo=erro_detalhe,
         )
-
-
-# ==============================================================================
-# [LOOP REMOVIDO]
-# ==============================================================================
