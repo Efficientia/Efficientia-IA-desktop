@@ -27,15 +27,19 @@ PII = [
 # HELPERS
 # ==============================================================================
 def _limpar_protocolos(texto: str) -> str:
-    """Remove protocolos internos (ROUTE=, PERGUNTA_ORIGINAL=) do LLM."""
+    """Remove protocolos internos (ROUTE=, PERGUNTA_ORIGINAL=, marcadores de guardrail e nós) do LLM."""
     if not texto:
         return ""
-    teve_protocolo = "ROUTE=" in texto or "PERGUNTA_ORIGINAL=" in texto
+    teve_protocolo = bool(
+        re.search(r"ROUTE=\w+|PERGUNTA_ORIGINAL=\[.*?\]|\[GUARDRAIL[^\]]*\]|\[JUIZ[^\]]*\]", texto, flags=re.DOTALL)
+    )
     texto = re.sub(r"ROUTE=\w+", "", texto)
     texto = re.sub(r"PERGUNTA_ORIGINAL=\[.*?\]", "", texto, flags=re.DOTALL)
+    texto = re.sub(r"\[GUARDRAIL[^\]]*\]\s*(?:Motivo:[^\n]*)?", "", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"\[JUIZ[^\]]*\][^\n]*", "", texto, flags=re.IGNORECASE)
     if teve_protocolo:
         try:
-            registrar_evento_guardrail("protocolo_limpo", "higienizado", "Tags internas ROUTE/PERGUNTA removidas")
+            registrar_evento_guardrail("protocolo_limpo", "higienizado", "Tags internas ROUTE/PERGUNTA/GUARDRAIL removidas")
         except Exception:
             pass
     return texto.strip()
@@ -83,10 +87,9 @@ def _saida_ok(conteudo):
 # ==============================================================================
 def anonimizar_entrada(texto):
     mapa = {}
-
     for tipo, padrao in PII:
-        matches = re.findall(padrao, texto)
-        for valor in matches:
+        for match in re.finditer(padrao, texto):
+            valor = match.group(0)
             token = f"[PII_{tipo}_{uuid.uuid4().hex[:6]}]"
             mapa[token] = valor
             texto = texto.replace(valor, token, 1)
@@ -135,29 +138,32 @@ _KEYWORDS_DADOS_INTERNOS = [
 
 # Uma chamada LLM para as 5 categorias semânticas
 _PROMPT_CLASSIFICADOR = """\
-Você é um classificador de segurança de um sistema de gestão de dados e planejamento.
-Classifique a mensagem em UMA categoria. Responda SOMENTE:
+Você é um classificador de segurança de um sistema de gestão de dados e suporte ao aplicativo/sistema Efficientia.
+Classifique a mensagem do usuário em UMA categoria com base estritamente em seu teor.
+ATENÇÃO CRÍTICA:
+- Dúvidas sobre uso do sistema, uso do aplicativo, dúvidas gerais operacionais ou perguntas sobre a empresa (ex: "como uso o aplicativo", "como eu uso o efficientia", "como funciona o app", "o que você faz", "como acessar") são SEMPRE APROVADO. NUNCA classifique dúvidas operacionais ou sobre o aplicativo como ofensivo, ilícito ou perigoso.
 
+Responda SOMENTE:
 CATEGORIA: [categoria]
 JUSTIFICATIVA: [uma linha]
 
 Categorias:
-APROVADO           - mensagem legítima sobre dados (informativa), planejamento ou operações
-OFENSIVO           - xingamentos, assédio, discurso de ódio
-PERIGOSO           - instruções que causam dano físico, psicológico ou coletivo
-ILICITO            - pedido de auxílio para atividades ilegais ou fraudulentas
-POLITICO           - opiniões ou debates políticos, partidos, eleições
-RECOMENDACAO_TECNICA - recomendação direta fora de escopo técnico
+APROVADO           - mensagens legítimas sobre o aplicativo, dados, relatórios, navegação, dúvidas do sistema ou saudações
+OFENSIVO           - xingamentos explícitos, agressões verbais, assédio, discurso de ódio ou palavrões direcionados
+PERIGOSO           - instruções que causam dano físico, armas, violência física ou riscos à integridade
+ILICITO            - auxílio direto para crimes, fraudes, roubos ou atividades ilegais
+POLITICO           - debates político-partidários, eleições ou propaganda eleitoral
+RECOMENDACAO_TECNICA - recomendação técnica/médica/jurídica direta fora de escopo
 
 Mensagem: {mensagem}
 """
 
 _RESPOSTAS_BLOQUEIO = {
-    "OFENSIVO":         ("conteudo_ofensivo",      "Por favor, mantenha um tom respeitoso para que eu possa te ajudar."),
-    "PERIGOSO":         ("pedido_perigoso",         "Não posso ajudar com esse tipo de solicitação, não é apropriado."),
-    "ILICITO":          ("pedido_ilicito",           "Não posso auxiliar com atividades ilegais ou irregulares, recomendo que deixe essas ideias de lado."),
-    "POLITICO":         ("pergunta_politica",        "Não me envolvo em temas políticos. Posso ajudar com a gestão de dados ou seu planejamento."),
-    "RECOMENDACAO_TECNICA": ("recomendacao_tecnica",   "Por regulação, não forneço recomendações técnicas fora do escopo. Posso explicar métricas de dados ou agendar uma reunião com seu analista."),
+    "OFENSIVO":         ("conteudo_ofensivo",      "Por favor, mantenha um tom respeitoso para que eu possa te ajudar com as funcionalidades do Efficientia."),
+    "PERIGOSO":         ("pedido_perigoso",         "Não posso ajudar com esse tipo de solicitação, pois não está em conformidade com as diretrizes de segurança."),
+    "ILICITO":          ("pedido_ilicito",           "Não posso auxiliar com atividades contrárias às regras operacionais ou legais. Posso ajudar com as funcionalidades do sistema."),
+    "POLITICO":         ("pergunta_politica",        "Não me envolvo em temas políticos. Meu foco é apoiar você no uso do sistema Efficientia, seus dados e relatórios."),
+    "RECOMENDACAO_TECNICA": ("recomendacao_tecnica",   "Por diretriz corporativa, não forneço recomendações técnicas fora do escopo. Posso explicar dados operacionais ou conectar você com o time de suporte."),
 }
 
 def guardrail_entrada(mensagem_anonimizada):
@@ -166,16 +172,30 @@ def guardrail_entrada(mensagem_anonimizada):
     determinístico primeiro, LLM só se necessário.
     Retorna dict com bloqueado, motivo e mensagem.
     """
-    # 1. Prompt injection
+    texto_limpo = mensagem_anonimizada.strip().lower()
+
+    # 0. Atalho determinístico para dúvidas legítimas sobre o aplicativo ou sistema Efficientia
+    padroes_seguros = [
+        r"^(como\s+(eu\s+)?(uso|utilizo|acesso|funciona|mexer|navegar|abrir|entrar)|o\s+que\s+(posso\s+fazer|voce\s+faz|é\s+o\s+efficientia|fazer)|ajuda|preciso\s+de\s+ajuda|socorro|suporte|manual)",
+    ]
+    eh_duvida_legitima = bool(re.search(padroes_seguros[0], texto_limpo)) or (
+        ("como" in texto_limpo or "onde" in texto_limpo or "qual" in texto_limpo or "ajuda" in texto_limpo)
+        and any(termo in texto_limpo for termo in ("aplicativo", "app", "efficientia", "sistema", "plataforma", "tela", "viagem", "dado", "relat"))
+    )
+
+    # 1. Prompt injection (sempre checado)
     for padrao in _PADROES_INJECAO:
         if re.search(padrao, mensagem_anonimizada, re.IGNORECASE):
             return _bloquear("prompt_injection", "Não consigo processar essa solicitação.")
 
-    # 2. Tentativa de acesso a dados internos
-    texto_lower = mensagem_anonimizada.lower()
+    # 2. Tentativa de acesso a dados internos (sempre checado)
     for kw in _KEYWORDS_DADOS_INTERNOS:
-        if kw in texto_lower:
-            return _bloquear("acesso_dados_internos", "Não tenho como compartilhar informações internas do sistema.")
+        if kw in texto_limpo:
+            return _bloquear("acesso_dados_internos", "Não tenho como compartilhar informações internas ou confidenciais.")
+
+    # Se for dúvida legítima identificada no atalho seguro, aprova imediatamente sem risco de falso positivo do LLM
+    if eh_duvida_legitima:
+        return _aprovado()
 
     # 3. Classificação semântica via LLM (ofensivo, perigoso, ilícito, político, indicação)
     resp_llm = llm.invoke(_PROMPT_CLASSIFICADOR.format(mensagem=mensagem_anonimizada))
@@ -196,8 +216,9 @@ def guardrail_entrada(mensagem_anonimizada):
 # GUARDRAIL DE SAÍDA
 # ==============================================================================
 _PROMPT_COMPLIANCE = """\
-Você é um revisor de compliance e segurança para o assistente de dados EficientIA.
-Garanta que a resposta NÃO exponha dados confidenciais do sistema ou senhas.
+Você é um revisor de compliance e segurança para o assistente de dados Efficientia.
+Garanta que a resposta NÃO exponha dados confidenciais do sistema, chaves ou senhas.
+Garanta também que a resposta NUNCA contenha jargões internos da arquitetura, como '[GUARDRAIL BLOQUEOU]', 'Motivo:', 'ROUTE=' ou tags técnicas.
 Se a resposta estiver adequada e segura, mantenha-a exatamente como está.
 
 Responda SOMENTE:
@@ -217,7 +238,7 @@ def guardrail_saida(resposta, mapa_pii, restaurar_pii=False):
     if not isinstance(resposta, str):
         resposta = _obter_texto(resposta)
     
-    # 0. Limpa protocolos vazados
+    # 0. Limpa protocolos e vazamentos de arquitetura vazados
     resposta = _limpar_protocolos(resposta)
 
     # 1. Remove PII que o modelo tenha gerado
@@ -234,5 +255,8 @@ def guardrail_saida(resposta, mapa_pii, restaurar_pii=False):
     saida = _obter_texto(resp_llm)
     if "RESPOSTA:" in saida:
         resposta = saida.split("RESPOSTA:", 1)[1].strip() or resposta
+
+    # Higienização final garantida
+    resposta = _limpar_protocolos(resposta)
 
     return _saida_ok(resposta)

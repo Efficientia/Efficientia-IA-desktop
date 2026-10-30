@@ -41,6 +41,7 @@ analise_dados_app = create_react_agent(model=llm_especialista, tools=TOOLS + TOO
 dashboard_app    = create_react_agent(model=llm_especialista, tools=TOOLS_QLIK,                   prompt=DASHBOARD_PROMPT_COMPLETO)
 faq_app          = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
 faq_nav_app      = create_react_agent(model=llm_rapido,       tools=[faq_nav_retriever],           prompt=FAQ_NAV_PROMPT_COMPLETO)
+
 # ==============================================================================
 # ESTADO
 # ==============================================================================
@@ -97,9 +98,53 @@ def _extrair_pergunta_protocolo(texto: str) -> str:
     return _limpar_protocolos(texto)
 
 
+def _detectar_pedido_vago_sistema(texto: str) -> bool:
+    """Identifica pedidos vagos/ambíguos sobre uso do app ou do sistema para devolver aprofundamento acolhedor."""
+    if not texto:
+        return False
+    t = texto.strip().casefold()
+    t_sem_pontuacao = re.sub(r"[^\w\s]", "", t).strip()
+
+    # Perguntas diretas e curtas sobre o app/sistema
+    padroes_vagos = [
+        r"^como\s+(eu\s+)?(uso|utilizo|acesso|funciona|mexer|mexo|navegar|navego|abrir|abro|entrar|entro)\s*(o|no|na)?\s*(aplicativo|app|efficientia|sistema|plataforma)?$",
+        r"^como\s+(funciona|uso|mexer|mexo|utilizo)\s*(o|a|no|na)?\s*(aplicativo|app|efficientia|sistema)?$",
+        r"^o\s+que\s+(posso\s+fazer|voce\s+faz|é\s+o\s+efficientia|fazer|da\s+para\s+fazer)\s*(no\s+app|no\s+sistema|aqui)?$",
+        r"^(ajuda|como\s+come[cç]ar|me\s+ajuda|preciso\s+de\s+ajuda|por\s+onde\s+come[cç]o)$",
+    ]
+    for p in padroes_vagos:
+        if re.search(p, t_sem_pontuacao):
+            return True
+
+    # Frases curtas (< 8 palavras) contendo palavras-chave genéricas de uso do app/sistema sem especificidade
+    palavras = t_sem_pontuacao.split()
+    tem_termo_generico = any(w in t_sem_pontuacao for w in ("como uso", "como utilizar", "como funciona", "como mexer", "como mexo", "como acessar"))
+    menciona_app_ou_sistema = any(w in t_sem_pontuacao for w in ("aplicativo", "app", "efficientia", "sistema"))
+    tem_especifico = any(w in t_sem_pontuacao for w in ("senha", "login", "cadastr", "assinatura", "foto", "gta", "viagem", "viagens", "motorista", "carreta", "cavalo", "mortalidade", "relat", "sql", "tabela", "dashboard", "qlik"))
+
+    if len(palavras) <= 7 and tem_termo_generico and menciona_app_ou_sistema and not tem_especifico:
+        return True
+
+    return False
+
+
 def no_roteador(estado: Estado, config: RunnableConfig) -> dict:
-    # Confirmações curtas preservam a intenção operacional do turno anterior.
     mensagens_recentes = list(estado["messages"])[-6:]
+    pergunta_atual = _obter_texto(mensagens_recentes[-1]).strip() if mensagens_recentes else ""
+
+    # 1. Tratamento determinístico para perguntas vagas/ambíguas sobre o aplicativo/sistema
+    if _detectar_pedido_vago_sistema(pergunta_atual):
+        resposta_clarificacao = (
+            "Perdão, você gostaria de ajuda para saber como navegar pelas telas do aplicativo, "
+            "como registrar um diário de rota/viagem, consultar dados operacionais ou acessar relatórios e dashboards? "
+            "Me diga em qual dessas frentes posso te orientar melhor!"
+        )
+        return {
+            "agentes_chamados": ["roteador"],
+            "resposta_final":   resposta_clarificacao,
+        }
+
+    # 2. Confirmações curtas preservam a intenção operacional do turno anterior.
     if len(mensagens_recentes) >= 2:
         atual = _obter_texto(mensagens_recentes[-1]).strip().casefold()
         anterior = _obter_texto(mensagens_recentes[-2]).strip()
@@ -110,11 +155,20 @@ def no_roteador(estado: Estado, config: RunnableConfig) -> dict:
                 "input": f"ROUTE=analise_dados\nPERGUNTA_ORIGINAL=[{anterior}]",
                 "agentes_chamados": ["roteador"],
             }
+
     saida = router_app.invoke({"messages": mensagens_recentes}, config=config)
     texto = _obter_texto(saida["messages"][-1])
+    texto = _limpar_protocolos(texto)
 
-    # Resposta direta (saudação, fora de escopo): já escreve no campo final
+    # Resposta direta (saudação, esclarecimento/aprofundamento, fora de escopo)
     if not texto.strip().startswith("ROUTE="):
+        # Se o roteador deu desculpas genéricas para um pedido legítimo de uso, substitui por clarificação acolhedora
+        if _detectar_pedido_vago_sistema(pergunta_atual) or ("como uso" in pergunta_atual.casefold() and "desculpe" in texto.casefold()):
+            texto = (
+                "Perdão, você gostaria de ajuda para saber como navegar pelas telas do aplicativo, "
+                "como registrar um diário de rota/viagem, consultar dados operacionais ou acessar relatórios e dashboards? "
+                "Me conte em qual dessas opções posso te guiar!"
+            )
         return {
             "agentes_chamados": ["roteador"],
             "resposta_final":   texto,
@@ -221,7 +275,7 @@ def no_juiz(estado: Estado, config: RunnableConfig) -> dict:
         rota=estado.get("rota", ""),
         config=config,
     )
-    texto_refinado = veredito["conteudo"]
+    texto_refinado = _limpar_protocolos(veredito["conteudo"])
 
     return {
         "saida_especialista": texto_refinado,
@@ -232,9 +286,6 @@ def no_juiz(estado: Estado, config: RunnableConfig) -> dict:
     }
 
 
-
-# === Quero e TENHO que estudar isso ===
-
 def no_guardrail(estado: Estado) -> dict:
     msg_usuario = estado["messages"][-1]
     puser = _obter_texto(msg_usuario)
@@ -242,8 +293,10 @@ def no_guardrail(estado: Estado) -> dict:
 
     resposta = guardrail_entrada(anonimizado)
     if resposta["bloqueado"]:
+        # Mensagem elegante ao usuário sem expor jargões ou arquitetura interna
+        msg_usuario_final = _limpar_protocolos(resposta["mensagem"])
         return {
-            "resposta_final": resposta["mensagem"],
+            "resposta_final": msg_usuario_final,
             "agentes_chamados": ["guardrail_entrada"],
             "messages": [{"role": "system", "content": f"[GUARDRAIL BLOQUEOU] Motivo: {resposta['motivo']}"}],
         }
@@ -260,17 +313,16 @@ def no_guardrail(estado: Estado) -> dict:
 def no_guardrail_saida(estado: Estado) -> dict:
     resp = estado.get("resposta_final") or estado.get("saida_especialista") or ""
     resultado = guardrail_saida(resp, estado.get("mapa_pii", {}))
+    conteudo_limpo = _limpar_protocolos(resultado["conteudo"])
     return {
         "messages": [{"role": "system", "content": f"[GUARDRAIL REVISOU SAÍDA] Resultado: {resultado['motivo']}"}],
-        "resposta_final": resultado["conteudo"]
+        "resposta_final": conteudo_limpo,
     }
 
 def roteador_guardrail_entrd(estado: Estado) -> str:
     if estado.get("resposta_final"):
         return "fim"
     return "roteador"
-
-# === ^^^^^^^^^^ Quero e TENHO que estudar isso ^^^^^^^^^^ ===
 
 
 # ==============================================================================
@@ -288,7 +340,6 @@ def decidir_especialista(estado: Estado) -> str:
         return "dashboard"
     elif rota in ("motorista", "alerta", "analise_dados"):
         return "analise_dados"
-    # planejamento removido
     elif rota in ("faq_nav", "navegacao"):
         return "faq_nav"
     elif rota in ("faq", "duvidas"):
@@ -403,7 +454,12 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
             else:
                 rota_escolhida = "geral"
 
-        resposta = estado_final.get("resposta_final") or estado_final.get("saida_especialista") or "Desculpe, não consegui processar a resposta."
+        resposta_raw = estado_final.get("resposta_final") or estado_final.get("saida_especialista") or "Desculpe, não consegui processar a resposta."
+        # Sanitização final rigorosa: NUNCA vazar tags de arquitetura ao usuário
+        resposta = _limpar_protocolos(resposta_raw)
+        if not resposta:
+            resposta = "Desculpe, não consegui processar a resposta no momento. Por favor, reformule sua dúvida."
+
         print(f"[debug] agentes chamados: {agentes} | status_sre: {status} | rota: {rota_escolhida}")
         return {
             "resposta": resposta,
