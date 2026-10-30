@@ -107,8 +107,8 @@ def _detectar_pedido_vago_sistema(texto: str) -> bool:
 
     # Perguntas diretas e curtas sobre o app/sistema
     padroes_vagos = [
-        r"^como\s+(eu\s+)?(uso|utilizo|acesso|funciona|mexer|navegar|abrir|entrar)\s*(o|no|na)?\s*(aplicativo|app|efficientia|sistema|plataforma)?$",
-        r"^como\s+(funciona|uso)\s*(o|a|no|na)?\s*(aplicativo|app|efficientia|sistema)?$",
+        r"^como\s+(eu\s+)?(uso|utilizo|acesso|funciona|mexer|mexo|navegar|navego|abrir|abro|entrar|entro)\s*(o|no|na)?\s*(aplicativo|app|efficientia|sistema|plataforma)?$",
+        r"^como\s+(funciona|uso|mexer|mexo|utilizo)\s*(o|a|no|na)?\s*(aplicativo|app|efficientia|sistema)?$",
         r"^o\s+que\s+(posso\s+fazer|voce\s+faz|é\s+o\s+efficientia|fazer|da\s+para\s+fazer)\s*(no\s+app|no\s+sistema|aqui)?$",
         r"^(ajuda|como\s+come[cç]ar|me\s+ajuda|preciso\s+de\s+ajuda|por\s+onde\s+come[cç]o)$",
     ]
@@ -118,7 +118,7 @@ def _detectar_pedido_vago_sistema(texto: str) -> bool:
 
     # Frases curtas (< 8 palavras) contendo palavras-chave genéricas de uso do app/sistema sem especificidade
     palavras = t_sem_pontuacao.split()
-    tem_termo_generico = any(w in t_sem_pontuacao for w in ("como uso", "como utilizar", "como funciona", "como mexer", "como acessar"))
+    tem_termo_generico = any(w in t_sem_pontuacao for w in ("como uso", "como utilizar", "como funciona", "como mexer", "como mexo", "como acessar"))
     menciona_app_ou_sistema = any(w in t_sem_pontuacao for w in ("aplicativo", "app", "efficientia", "sistema"))
     tem_especifico = any(w in t_sem_pontuacao for w in ("senha", "login", "cadastr", "assinatura", "foto", "gta", "viagem", "viagens", "motorista", "carreta", "cavalo", "mortalidade", "relat", "sql", "tabela", "dashboard", "qlik"))
 
