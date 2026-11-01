@@ -32,10 +32,10 @@ def _remover_vicios_ia(texto: str) -> str:
     # Remove emojis robóticos ou infantis comuns
     texto = re.sub(r"[🤖🧠🚀🎉✨🙌]", "", texto)
     
-    # Remove frases clichês no início ou no meio
+    # Remove frases clichês no início, meio ou fim
     padroes_vicios = [
         r"(?i)^ol[áa]!?(,\s*como\s+posso\s+ajudar\??)?\s*",
-        r"(?i)^espero\s+(que\s+isso\s+ajude|ter\s+ajudado)[\.!]?\s*",
+        r"(?i)espero\s+(que\s+isso\s+ajude|ter\s+ajudado)[\.!]?\s*",
         r"(?i)^com\s+certeza!?,?\s*",
         r"(?i)^claro!?,?\s*",
         r"(?i)como\s+uma\s+intelig[êe]ncia\s+artificial[,\.]?\s*",
@@ -46,7 +46,7 @@ def _remover_vicios_ia(texto: str) -> str:
     for padrao in padroes_vicios:
         texto = re.sub(padrao, "", texto)
         
-    return texto.strip()
+    return _limpar_protocolos(texto.strip())
 
 
 def avaliar_resposta_juiz(
@@ -87,20 +87,12 @@ def avaliar_resposta_juiz(
         saida_bruta = getattr(resposta_llm, "content", str(resposta_llm)).strip()
 
         # Extração de STATUS
-        status = "APROVADO"
-        m_status = re.search(r"STATUS:\s*([^\n]+)", saida_bruta, re.IGNORECASE)
-        if m_status:
-            status_capturado = m_status.group(1).strip().upper()
-            if "REFINADO" in status_capturado:
-                status = "REFINADO"
-            elif "APROVADO" in status_capturado:
-                status = "APROVADO"
+        match_status = re.search(r"STATUS:\s*(APROVADO|REFINADO)", saida_bruta, re.IGNORECASE)
+        status = match_status.group(1).upper() if match_status else "APROVADO"
 
         # Extração de AVALIACAO
-        avaliacao = "Auditoria executiva concluída com sucesso"
-        m_av = re.search(r"AVALIACAO:\s*([^\n]+)", saida_bruta, re.IGNORECASE)
-        if m_av:
-            avaliacao = m_av.group(1).strip()
+        match_av = re.search(r"AVALIACAO:\s*([^\n]+)", saida_bruta, re.IGNORECASE)
+        avaliacao = match_av.group(1).strip() if match_av else "Resposta conforme com as diretrizes analíticas."
 
         # Extração do conteúdo refinado após RESPOSTA:
         if "RESPOSTA:" in saida_bruta:
@@ -110,6 +102,7 @@ def avaliar_resposta_juiz(
             conteudo_final = re.sub(r"(?i)^STATUS:[^\n]*\n?", "", saida_bruta)
             conteudo_final = re.sub(r"(?i)^AVALIACAO:[^\n]*\n?", "", conteudo_final).strip()
 
+        # Fallback defensivo: se a extração ficar vazia, preserva o rascunho original
         if not conteudo_final:
             conteudo_final = texto_limpo
 
