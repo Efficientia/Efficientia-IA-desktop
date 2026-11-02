@@ -8,25 +8,26 @@ Documento gerado para representar a topologia e execução do grafo multi-agente
 
 ```mermaid
 flowchart TD
-    Entrada([Mensagem do Usuário]) --> GuardrailEntrada[guardrail_entrd]
+    Inicio([suário envia uma mensagem]) --> Entrada[1. Porteiro: Guardrail de Entrada]
     
-    GuardrailEntrada -->|Bloqueado / PII Crítico| Fim([Usuário])
-    GuardrailEntrada -->|Aprovado / Anonimizado| Roteador[roteador]
+    Entrada -->|Mensagem perigosa ou ataque| Bloqueio([Resposta de Bloqueio Educada])
+    Entrada -->|Mensagem segura e dados protegidos| Roteador[2. Recepcionista: Roteador Semântico]
     
-    Roteador -->|Small Talk / Fora de Escopo| Fim
-    Roteador -->|ROUTE=dashboard| Dashboard[dashboard]
-    Roteador -->|ROUTE=analise_dados / motorista / alerta| AnaliseDados[analise_dados]
-    Roteador -->|ROUTE=faq / duvidas| FAQ[faq]
-    Roteador -->|ROUTE=faq_nav / navegacao| FAQNav[faq_nav]
+    Roteador -->|Saudação / Dúvida simples| Juiz
+    Roteador -->|Métricas e Dashboards| Dashboard[a. Especialista Qlik Cloud]
+    Roteador -->|Contagens e Banco de Dados| AnaliseDados[b. Especialista Banco PostgreSQL]
+    Roteador -->|Regras e Leis do MAPA| FAQ[3c. Especialista em Documentos]
+    Roteador -->|Como usar telas do App| FAQNav[3d. Especialista em Navegação]
     
-    Dashboard --> Orquestrador[orquestrador]
+    Dashboard --> Orquestrador[4. Coordenador: Orquestrador]
     AnaliseDados --> Orquestrador
     
-    Orquestrador --> GuardrailSaida[guardrail_saida]
-    FAQ --> GuardrailSaida
-    FAQNav --> GuardrailSaida
+    Orquestrador --> Juiz[5. Inspetor de Qualidade: Agente Juiz]
+    FAQ --> Juiz
+    FAQNav --> Juiz
     
-    GuardrailSaida --> Fim
+    Juiz --> Saida[6. Revisor Final: Guardrail de Saída]
+    Saida --> Fim([Entrega da Resposta ao Usuário])
 ```
 
 ---
