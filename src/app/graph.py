@@ -1,9 +1,16 @@
 import operator
 from typing import Annotated, TypedDict
-from src.app.llms import llm_gemini, llm_groq, llm_rapido, llm_especialista
+from src.app.llms import (
+    llm_gemini,
+    llm_groq,
+    llm_rapido,
+    llm_especialista,
+    llm_rapido_com_fallback,
+    llm_especialista_com_fallback,
+)
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import MessagesState
-from langchain_core.messages import RemoveMessage, HumanMessage
+from langchain_core.messages import RemoveMessage, HumanMessage, AIMessage
 from langgraph.prebuilt import create_react_agent
 
 
@@ -36,24 +43,32 @@ from datetime import datetime
 agora = datetime.now().strftime("%H:%M:%S")
 
 
-router_app       = create_react_agent(model=llm_rapido,       tools=[],                            prompt=ROUTER_PROMPT_COMPLETO)
-analise_dados_app = create_react_agent(model=llm_especialista, tools=TOOLS + TOOLS_MEMORIA,        prompt=ANALISE_DADOS_PROMPT_COMPLETO)
-dashboard_app    = create_react_agent(model=llm_especialista, tools=TOOLS_QLIK,                   prompt=DASHBOARD_PROMPT_COMPLETO)
-faq_app          = create_react_agent(model=llm_rapido,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
-faq_nav_app      = create_react_agent(model=llm_rapido,       tools=[faq_nav_retriever],           prompt=FAQ_NAV_PROMPT_COMPLETO)
+router_app       = create_react_agent(model=llm_rapido_com_fallback,       tools=[],                            prompt=ROUTER_PROMPT_COMPLETO)
+analise_dados_app = create_react_agent(model=llm_especialista_com_fallback, tools=TOOLS + TOOLS_MEMORIA,        prompt=ANALISE_DADOS_PROMPT_COMPLETO)
+dashboard_app    = create_react_agent(model=llm_especialista_com_fallback, tools=TOOLS_QLIK,                   prompt=DASHBOARD_PROMPT_COMPLETO)
+faq_app          = create_react_agent(model=llm_rapido_com_fallback,       tools=[faq_retriever],               prompt=FAQ_PROMPT_COMPLETO)
+faq_nav_app      = create_react_agent(model=llm_rapido_com_fallback,       tools=[faq_nav_retriever],           prompt=FAQ_NAV_PROMPT_COMPLETO)
 
 # ==============================================================================
 # ESTADO
 # ==============================================================================
+def _reducer_agentes(atual: list[str] | None, novo: list[str] | None) -> list[str]:
+    """Acumula agentes chamados no turno, mas permite resetar fornecendo [] no início da execução."""
+    if novo is None:
+        return atual or []
+    if novo == []:
+        return []
+    return (atual or []) + novo
+
 class Estado(MessagesState):                                  # ID da sessão
-    agentes_chamados:   Annotated[list[str], operator.add]  # acumula entre nós
+    agentes_chamados:   Annotated[list[str], _reducer_agentes]  # acumula nós do turno atual
+    bloqueado_guardrail: bool
     rota: str
     mapa_pii: dict
     input: str                 # pergunta (já anonimizada) repassada entre os nós
     resposta_final: str        # resposta que será devolvida ao usuário
     saida_especialista: str    # saída do agente especialista, antes do orquestrador
     veredito_juiz:      str    # auditoria do agente juiz (Groq)
-
 # ==============================================================================
 
 
@@ -129,7 +144,14 @@ def _detectar_pedido_vago_sistema(texto: str) -> bool:
 
 
 def no_roteador(estado: Estado, config: RunnableConfig) -> dict:
-    mensagens_recentes = list(estado["messages"])[-6:]
+    # Filtra apenas mensagens dialógicas reais (ignora mensagens residuais)
+    mensagens_validas = [
+        m for m in estado.get("messages", [])
+        if getattr(m, "type", None) in ("human", "ai")
+        or getattr(m, "role", None) in ("human", "assistant")
+        or isinstance(m, (HumanMessage, AIMessage))
+    ]
+    mensagens_recentes = mensagens_validas[-6:] if mensagens_validas else list(estado.get("messages", []))[-6:]
     pergunta_atual = _obter_texto(mensagens_recentes[-1]).strip() if mensagens_recentes else ""
 
     # 1. Tratamento determinístico para perguntas vagas/ambíguas sobre o aplicativo/sistema
@@ -145,16 +167,18 @@ def no_roteador(estado: Estado, config: RunnableConfig) -> dict:
         }
 
     # 2. Confirmações curtas preservam a intenção operacional do turno anterior.
-    if len(mensagens_recentes) >= 2:
-        atual = _obter_texto(mensagens_recentes[-1]).strip().casefold()
-        anterior = _obter_texto(mensagens_recentes[-2]).strip()
+    if len(mensagens_validas) >= 2:
+        atual = _obter_texto(mensagens_validas[-1]).strip().casefold()
         confirmacoes = {"sim", "pode", "pode sim", "mostre", "mostre os dados", "isso", "quero", "ok", "claro"}
         termos_operacionais = ("viagem", "viagens", "relatório", "relatorios", "dados", "motorista", "dashboard", "métrica", "metricas")
-        if atual.rstrip(".!?") in confirmacoes and any(t in anterior.casefold() for t in termos_operacionais):
-            return {
-                "input": f"ROUTE=analise_dados\nPERGUNTA_ORIGINAL=[{anterior}]",
-                "agentes_chamados": ["roteador"],
-            }
+        if atual.rstrip(".!?") in confirmacoes:
+            for m_ant in reversed(mensagens_validas[:-1]):
+                texto_ant = _obter_texto(m_ant).strip()
+                if any(t in texto_ant.casefold() for t in termos_operacionais):
+                    return {
+                        "input": f"ROUTE=analise_dados\nPERGUNTA_ORIGINAL=[{texto_ant}]",
+                        "agentes_chamados": ["roteador"],
+                    }
 
     saida = router_app.invoke({"messages": mensagens_recentes}, config=config)
     texto = _obter_texto(saida["messages"][-1])
@@ -250,7 +274,7 @@ def no_orquestrador(estado: Estado, config: RunnableConfig) -> dict:
         {"role": "system", "content": ORQUESTRADOR_PROMPT_COMPLETO},
         {"role": "human", "content": conteudo_entrada},
     ]
-    resp = llm_rapido.invoke(mensagens, config=config)
+    resp = llm_rapido_com_fallback.invoke(mensagens, config=config)
     texto = _obter_texto(resp)
     texto = _limpar_protocolos(texto)
     return {
@@ -282,7 +306,6 @@ def no_juiz(estado: Estado, config: RunnableConfig) -> dict:
         "resposta_final": texto_refinado,
         "veredito_juiz": f"{veredito['status']}: {veredito['avaliacao']}",
         "agentes_chamados": ["juiz"],
-        "messages": [{"role": "system", "content": f"[JUIZ GROQ] {veredito['status']}: {veredito['avaliacao']}"}],
     }
 
 
@@ -298,7 +321,8 @@ def no_guardrail(estado: Estado) -> dict:
         return {
             "resposta_final": msg_usuario_final,
             "agentes_chamados": ["guardrail_entrada"],
-            "messages": [{"role": "system", "content": f"[GUARDRAIL BLOQUEOU] Motivo: {resposta['motivo']}"}],
+            "messages": [AIMessage(content=msg_usuario_final)],
+            "bloqueado_guardrail": True,
         }
     else:
         msg_remover = [RemoveMessage(id=msg_usuario.id)] if hasattr(msg_usuario, "id") and msg_usuario.id else []
@@ -306,7 +330,8 @@ def no_guardrail(estado: Estado) -> dict:
             "input": anonimizado,
             "mapa_pii": novo_mapa,
             "agentes_chamados": ["guardrail_entrada"],
-            "messages": msg_remover + [{"role": "human", "content": anonimizado}],
+            "messages": msg_remover + [HumanMessage(content=anonimizado)],
+            "bloqueado_guardrail": False,
         }
 
 
@@ -315,8 +340,8 @@ def no_guardrail_saida(estado: Estado) -> dict:
     resultado = guardrail_saida(resp, estado.get("mapa_pii", {}))
     conteudo_limpo = _limpar_protocolos(resultado["conteudo"])
     return {
-        "messages": [{"role": "system", "content": f"[GUARDRAIL REVISOU SAÍDA] Resultado: {resultado['motivo']}"}],
         "resposta_final": conteudo_limpo,
+        "messages": [AIMessage(content=conteudo_limpo)],
     }
 
 def roteador_guardrail_entrd(estado: Estado) -> str:
@@ -408,11 +433,12 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
     veredito_juiz = "APROVADO"
     try:
         estado_inicial = {
-            "messages": [{"role": "human", "content": pergunta_usuario}],
-            "agentes_chamados":   [],
+            "messages": [HumanMessage(content=pergunta_usuario)],
+            "agentes_chamados": [],
+            "bloqueado_guardrail": False,
             "rota": "",
             "mapa_pii": {},
-            "messages": [HumanMessage(content=pergunta_usuario)],
+            "input": "",
             "resposta_final": "",
             "saida_especialista": "",
         }
@@ -430,7 +456,7 @@ def executar_fluxo_assistente(pergunta_usuario: str, session_id: str) -> dict:
         veredito_juiz = estado_final.get("veredito_juiz") or "APROVADO"
 
         # Identifica se houve bloqueio por guardrail de entrada (Bloqueio != Erro no SRE)
-        bloqueado_guardrail = any(
+        bloqueado_guardrail = bool(estado_final.get("bloqueado_guardrail")) or any(
             (isinstance(m, dict) and "[GUARDRAIL BLOQUEOU]" in str(m.get("content", "")))
             or (hasattr(m, "content") and "[GUARDRAIL BLOQUEOU]" in str(m.content))
             for m in mensagens
